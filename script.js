@@ -62,9 +62,18 @@ coinImg.src = 'assets/textures/coin.png';
 const lvl1BgImg = new Image();
 lvl1BgImg.src = 'assets/backgrounds/level1.png';
 
-// DODANO: Level 2 Ozadje
 const lvl2BgImg = new Image();
 lvl2BgImg.src = 'assets/backgrounds/level2.png';
+
+const lvl3BgImg = new Image();
+lvl3BgImg.src = 'assets/backgrounds/level3.png';
+
+// Boss teksture
+const birdBossImg = new Image();
+birdBossImg.src = 'assets/textures/birdboss.png';
+
+const bulletImg = new Image();
+bulletImg.src = 'assets/textures/bullet.png';
 
 // Nalaganje zvokov
 const flapSound = new Audio('assets/sounds/flap.wav');
@@ -82,6 +91,9 @@ endlessMusic.loop = true;
 
 const surfaceMusic = new Audio('assets/sounds/surface.wav');
 surfaceMusic.loop = true;
+
+const boss1Music = new Audio('assets/sounds/boss1.wav');
+boss1Music.loop = true;
 
 const storage = {
     get: function(key) {
@@ -143,13 +155,22 @@ function updateVolumes() {
             if (gameMode === 'ENDLESS') {
                 endlessMusic.volume = currentMusicVolume;
                 surfaceMusic.volume = 0;
+                boss1Music.volume = 0;
             } else if (gameMode === 'CAMPAIGN') {
-                surfaceMusic.volume = currentMusicVolume;
-                endlessMusic.volume = 0;
+                if (currentLevel === 3) {
+                    boss1Music.volume = currentMusicVolume;
+                    surfaceMusic.volume = 0;
+                    endlessMusic.volume = 0;
+                } else {
+                    surfaceMusic.volume = currentMusicVolume;
+                    boss1Music.volume = 0;
+                    endlessMusic.volume = 0;
+                }
             }
         } else {
             endlessMusic.volume = 0;
             surfaceMusic.volume = 0;
+            boss1Music.volume = 0;
         }
     }
 }
@@ -214,6 +235,8 @@ function backToMainMenu() {
     bird.reset();       
     pipes.reset();
     coins.reset();
+    boss.reset();
+    bullets.reset();
     
     const menus = [campaignGameOverMenu, levelCompleteMenu, campaignMenu];
     menus.forEach(m => m.style.display = 'none');
@@ -412,6 +435,9 @@ const backgroundLayer = {
             } else if (currentLevel === 2) {
                 imgToDraw = lvl2BgImg;
                 w = scaledCampaignBgWidth;
+            } else if (currentLevel === 3) {
+                imgToDraw = lvl3BgImg;
+                w = scaledCampaignBgWidth;
             }
         }
 
@@ -425,7 +451,7 @@ const backgroundLayer = {
             this.x -= currentDx;
             
             let w = scaledBgWidth;
-            if (gameMode === 'CAMPAIGN' && (currentLevel === 1 || currentLevel === 2)) {
+            if (gameMode === 'CAMPAIGN' && (currentLevel === 1 || currentLevel === 2 || currentLevel === 3)) {
                 w = scaledCampaignBgWidth;
             }
             if (this.x <= -w) {
@@ -442,6 +468,9 @@ const floorLayer = {
     height: 512,
     
     draw: function() {
+        // V Level 3 vizualno odstranimo tla!
+        if (gameMode === 'CAMPAIGN' && currentLevel === 3) return;
+
         let drawX = Math.floor(this.x);
         ctx.drawImage(floorImg, drawX, this.y, this.width, this.height);
         ctx.drawImage(floorImg, drawX + this.width - 1, this.y, this.width, this.height);
@@ -456,9 +485,13 @@ const floorLayer = {
         }
         
         if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
-            const hitGroundY = canvas.height * 0.75; 
+            // Logika smrti ob trku ob tla
+            let hitGroundY = canvas.height * 0.75; 
+            if (gameMode === 'CAMPAIGN' && currentLevel === 3) {
+                hitGroundY = canvas.height; // V level 3 ni tal, zato je meja smrti čisto na dnu
+            }
+
             const bh = bird.getHitbox();
-            
             if (bh.y + bh.h >= hitGroundY) {
                 gameOver();
             }
@@ -511,7 +544,21 @@ const bird = {
             this.velocity += this.gravity;
             this.y += this.velocity;
             
-            const hitGroundY = canvas.height * 0.75; 
+            // Mehanika Vetra (Samo v Level 3)
+            if (gameState === 'PLAYING' && gameMode === 'CAMPAIGN' && currentLevel === 3) {
+                if (boss.windActive) {
+                    this.x -= 1.5; 
+                    if (this.x < 10) this.x = 10; 
+                } else if (this.x < 50) {
+                    this.x += 1; 
+                    if (this.x > 50) this.x = 50;
+                }
+            }
+
+            let hitGroundY = canvas.height * 0.75; 
+            if (gameMode === 'CAMPAIGN' && currentLevel === 3) {
+                hitGroundY = canvas.height; 
+            }
             const bh = this.getHitbox();
             
             if (bh.y + bh.h >= hitGroundY) {
@@ -528,8 +575,110 @@ const bird = {
         }
     },
     reset: function() {
+        this.x = 50; 
         this.y = 150;
         this.velocity = 0;
+    }
+};
+
+// --- BOSS OBJEKTI (LEVEL 3) ---
+const boss = {
+    active: false,
+    x: 0,
+    y: 0,
+    width: 140, 
+    height: 140,
+    windTimer: 0,
+    windActive: false,
+    shootTimer: 0,
+    
+    draw: function() {
+        if (!this.active || gameState !== 'PLAYING') return;
+
+        if (this.windActive) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            for (let i = 0; i < 8; i++) {
+                let lx = canvas.width - ((frames * 18 + i * 87) % canvas.width);
+                let ly = (i * 45 + frames * 2) % (canvas.height);
+                ctx.fillRect(lx, ly, 50 + Math.random() * 40, 2);
+            }
+        }
+
+        ctx.drawImage(birdBossImg, this.x, this.y, this.width, this.height);
+    },
+    update: function() {
+        if (gameMode !== 'CAMPAIGN' || currentLevel !== 3 || gameState !== 'PLAYING') return;
+        
+        if (distanceTraveled < currentLevelLength) {
+            this.active = true;
+            
+            this.x = canvas.width - this.width - 10;
+            let hitGroundY = canvas.height;
+            let centerY = hitGroundY / 2 - this.height / 2;
+            this.y = centerY + Math.sin(frames * 0.04) * 80;
+
+            this.windTimer++;
+            if (this.windTimer > 250) { 
+                this.windActive = true;
+                if (this.windTimer > 350) { 
+                    this.windActive = false;
+                    this.windTimer = 0;
+                }
+            }
+
+            this.shootTimer++;
+            if (this.shootTimer > 120) { 
+                bullets.items.push({
+                    x: this.x + 20,
+                    y: this.y + this.height / 2 - 15, 
+                    width: 55, 
+                    height: 30
+                });
+                this.shootTimer = 0;
+            }
+        } else {
+            this.active = false;
+            this.windActive = false;
+        }
+    },
+    reset: function() {
+        this.active = false;
+        this.windTimer = 0;
+        this.windActive = false;
+        this.shootTimer = 0;
+    }
+};
+
+const bullets = {
+    items: [],
+    draw: function() {
+        for (let b of this.items) {
+            ctx.drawImage(bulletImg, b.x, b.y, b.width, b.height);
+        }
+    },
+    update: function() {
+        if (gameState !== 'PLAYING') return;
+
+        for (let i = 0; i < this.items.length; i++) {
+            let b = this.items[i];
+            b.x -= (gameSpeed + 3); 
+
+            const bh = bird.getHitbox();
+            if (bh.x < b.x + b.width &&
+                bh.x + bh.w > b.x &&
+                bh.y < b.y + b.height &&
+                bh.h + bh.y > b.y) {
+                gameOver();
+            }
+
+            if (b.x + b.width < 0) {
+                this.items.shift();
+                i--;
+            }
+        }
+    },
+    reset: function() {
+        this.items = [];
     }
 };
 
@@ -544,8 +693,7 @@ const coins = {
             if (!c.collected) {
                 let actualY = c.baseY;
                 
-                // V Level 2 kovanec sledi gibanju svoje cevi, v ostalih samo malo lebdi
-                if (gameMode === 'CAMPAIGN' && currentLevel === 2) {
+                if (gameMode === 'CAMPAIGN' && currentLevel === 2 && !c.isBossCoin) {
                     actualY += Math.sin(frames * 0.05 + c.pipeBobPhase) * 45;
                 } else {
                     actualY += Math.sin(frames * 0.1 + c.coinBobPhase) * 8;
@@ -558,15 +706,39 @@ const coins = {
     update: function() {
         if (gameState !== 'PLAYING') return;
 
+        if (gameMode === 'CAMPAIGN' && currentLevel === 3) {
+            if (coinsSpawned < 3) {
+                let spawnOffset = canvas.width - bird.x; 
+                let triggerDistances = [
+                    (currentLevelLength * 0.25) - spawnOffset,
+                    (currentLevelLength * 0.50) - spawnOffset,
+                    (currentLevelLength * 0.75) - spawnOffset
+                ];
+
+                if (distanceTraveled >= triggerDistances[coinsSpawned]) {
+                    let hitGroundY = canvas.height;
+                    this.items.push({
+                        x: canvas.width + 50, 
+                        baseY: Math.random() * (hitGroundY - 150) + 50,
+                        coinBobPhase: Math.random() * Math.PI * 2, 
+                        collected: false,
+                        isBossCoin: true,
+                        id: coinsSpawned 
+                    });
+                    coinsSpawned++;
+                }
+            }
+        }
+
         for (let i = 0; i < this.items.length; i++) {
             let c = this.items[i];
             c.x -= gameSpeed;
 
             if (!c.collected) {
                 const bh = bird.getHitbox();
-                
                 let actualY = c.baseY;
-                if (gameMode === 'CAMPAIGN' && currentLevel === 2) {
+                
+                if (gameMode === 'CAMPAIGN' && currentLevel === 2 && !c.isBossCoin) {
                     actualY += Math.sin(frames * 0.05 + c.pipeBobPhase) * 45;
                 } else {
                     actualY += Math.sin(frames * 0.1 + c.coinBobPhase) * 8;
@@ -608,7 +780,6 @@ const pipes = {
         for (let i = 0; i < this.items.length; i++) {
             let p = this.items[i];
             
-            // Izračun dejanske Y pozicije cevi (animacija za Level 2)
             let currentY = p.baseY;
             if (gameMode === 'CAMPAIGN' && currentLevel === 2) {
                 currentY += Math.sin(frames * 0.05 + p.bobPhase) * 45;
@@ -626,6 +797,8 @@ const pipes = {
     update: function() {
         if (gameState !== 'PLAYING') return; 
 
+        if (gameMode === 'CAMPAIGN' && currentLevel === 3) return;
+
         let stopSpawning = false;
         if (gameMode === 'CAMPAIGN' && distanceTraveled > currentLevelLength - 300) {
             stopSpawning = true;
@@ -638,17 +811,16 @@ const pipes = {
             let hitGroundY = canvas.height * 0.75; 
             let minPipeHeight = 50; 
             
-            // Omejitve generiranja (V Level 2 dodamo buffer, da cevi ne zbežijo v tla ali strop ko lebdijo)
             let amplitude = (gameMode === 'CAMPAIGN' && currentLevel === 2) ? 45 : 0;
             let minY = minPipeHeight + amplitude;
             let maxY = hitGroundY - this.gap - minPipeHeight - amplitude; 
             
             let randomY = Math.random() * (maxY - minY) + minY;
-            let pBobPhase = Math.random() * Math.PI * 2; // Naključni ritem za Level 2
+            let pBobPhase = Math.random() * Math.PI * 2; 
             
             this.items.push({
                 x: canvas.width,
-                baseY: randomY, // Shranimo originalno središče
+                baseY: randomY, 
                 bobPhase: pBobPhase,
                 passed: false 
             });
@@ -666,9 +838,10 @@ const pipes = {
                     coins.items.push({
                         x: canvas.width + this.width / 2 - coins.size / 2, 
                         baseY: randomY + this.gap / 2 - coins.size / 2,
-                        pipeBobPhase: pBobPhase, // Podeduje gibanje cevi (Za Level 2)
-                        coinBobPhase: Math.random() * Math.PI * 2, // Za normalno lebdenje
+                        pipeBobPhase: pBobPhase, 
+                        coinBobPhase: Math.random() * Math.PI * 2, 
                         collected: false,
+                        isBossCoin: false,
                         id: coinsSpawned 
                     });
                     coinsSpawned++;
@@ -680,7 +853,6 @@ const pipes = {
             let p = this.items[i];
             p.x -= gameSpeed; 
 
-            // Izračun trenutnega Y cevi med trki
             let currentY = p.baseY;
             if (gameMode === 'CAMPAIGN' && currentLevel === 2) {
                 currentY += Math.sin(frames * 0.05 + p.bobPhase) * 45;
@@ -742,6 +914,8 @@ function levelComplete() {
     
     surfaceMusic.pause();
     surfaceMusic.currentTime = 0;
+    boss1Music.pause();
+    boss1Music.currentTime = 0;
 
     setTimeout(() => {
         let fadeInterval = setInterval(() => {
@@ -753,6 +927,8 @@ function levelComplete() {
                 bird.reset();
                 pipes.reset();
                 coins.reset();
+                boss.reset();
+                bullets.reset();
                 
                 campaignUI.style.display = 'none';
                 
@@ -793,6 +969,8 @@ function gameOver() {
     endlessMusic.currentTime = 0;
     surfaceMusic.pause();
     surfaceMusic.currentTime = 0;
+    boss1Music.pause();
+    boss1Music.currentTime = 0;
     
     if (gameMode === 'ENDLESS') {
         if (score > bestScore) {
@@ -814,6 +992,8 @@ function gameOver() {
                 bird.reset();
                 pipes.reset();
                 coins.reset();
+                boss.reset();
+                bullets.reset();
                 gameState = 'MENU';
                 
                 campaignUI.style.display = 'none';
@@ -858,6 +1038,9 @@ function resetGame(mode, level = 0) {
     bird.reset();
     pipes.reset();
     coins.reset();
+    boss.reset();
+    bullets.reset();
+    
     score = 0;
     frames = 0;
     distanceTraveled = 0;
@@ -895,7 +1078,11 @@ function resetGame(mode, level = 0) {
         
         if (gameMode === 'CAMPAIGN') {
             campaignUI.style.display = 'flex';
-            crossfadeMusic(bgMusic, surfaceMusic);
+            if (currentLevel === 3) {
+                crossfadeMusic(bgMusic, boss1Music);
+            } else {
+                crossfadeMusic(bgMusic, surfaceMusic);
+            }
         } else {
             crossfadeMusic(bgMusic, endlessMusic);
         }
@@ -923,6 +1110,12 @@ function draw(now) {
 
         pipes.update();
         pipes.draw();
+        
+        boss.update();
+        boss.draw();
+        
+        bullets.update();
+        bullets.draw();
 
         coins.update();
         coins.draw();
@@ -992,7 +1185,7 @@ document.getElementById('lvlBtn2').addEventListener('click', () => resetGame('CA
 document.getElementById('lvlBtn3').addEventListener('click', () => resetGame('CAMPAIGN', 3));
 
 let assetsLoaded = 0;
-const totalAssets = 5; // Spremenjeno na 5 zaradi lvl2BgImg
+const totalAssets = 8; 
 
 function checkAssets() {
     assetsLoaded++;
@@ -1009,3 +1202,6 @@ if (backgroundImg.complete) checkAssets(); else backgroundImg.onload = checkAsse
 if (coinImg.complete) checkAssets(); else coinImg.onload = checkAssets;
 if (lvl1BgImg.complete) checkAssets(); else lvl1BgImg.onload = checkAssets;
 if (lvl2BgImg.complete) checkAssets(); else lvl2BgImg.onload = checkAssets;
+if (lvl3BgImg.complete) checkAssets(); else lvl3BgImg.onload = checkAssets;
+if (birdBossImg.complete) checkAssets(); else birdBossImg.onload = checkAssets;
+if (bulletImg.complete) checkAssets(); else bulletImg.onload = checkAssets;
