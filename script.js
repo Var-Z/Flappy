@@ -11,6 +11,7 @@ const campaignUI = document.getElementById('campaignUI');
 
 const campaignGameOverMenu = document.getElementById('campaignGameOverMenu');
 const levelCompleteMenu = document.getElementById('levelCompleteMenu');
+const bossIntroUI = document.getElementById('bossIntroUI'); // DODANO
 
 const startBtn = document.getElementById('startBtn');
 const openCampaignBtn = document.getElementById('openCampaignBtn');
@@ -50,8 +51,14 @@ birdImg.src = 'assets/textures/bird.png';
 const pipeImg = new Image();
 pipeImg.src = 'assets/textures/pipe.png';
 
+const pipe2Img = new Image();
+pipe2Img.src = 'assets/textures/pipe2.png'; 
+
 const floorImg = new Image();
 floorImg.src = 'assets/backgrounds/floor.png';
+
+const floor2Img = new Image();
+floor2Img.src = 'assets/backgrounds/floor2.png'; 
 
 const backgroundImg = new Image();
 backgroundImg.src = 'assets/backgrounds/background.png';
@@ -68,7 +75,9 @@ lvl2BgImg.src = 'assets/backgrounds/level2.png';
 const lvl3BgImg = new Image();
 lvl3BgImg.src = 'assets/backgrounds/level3.png';
 
-// Boss teksture
+const lvl4BgImg = new Image();
+lvl4BgImg.src = 'assets/backgrounds/level4.png'; 
+
 const birdBossImg = new Image();
 birdBossImg.src = 'assets/textures/birdboss.png';
 
@@ -92,6 +101,9 @@ endlessMusic.loop = true;
 const surfaceMusic = new Audio('assets/sounds/surface.wav');
 surfaceMusic.loop = true;
 
+const underwaterMusic = new Audio('assets/sounds/underwater.wav');
+underwaterMusic.loop = true;
+
 const boss1Music = new Audio('assets/sounds/boss1.wav');
 boss1Music.loop = true;
 
@@ -108,7 +120,7 @@ const storage = {
 
 // --- SPREMENLJIVKE IGRE ---
 let frames = 0;
-let gameState = 'MENU'; 
+let gameState = 'MENU'; // 'MENU', 'READY', 'PLAYING', 'BOSS_INTRO', 'GAMEOVER', 'VICTORY'
 let gameMode = 'ENDLESS'; 
 let currentLevel = 0; 
 
@@ -136,6 +148,15 @@ let currentSfxVolume = savedSfxVolume !== null ? parseFloat(savedSfxVolume) : 0.
 
 let currentFadeInterval = null;
 
+// PAMETNA FUNKCIJA ZA VIŠINO TAL GLEDE NA NIVO
+function getHitGroundY() {
+    if (gameMode === 'CAMPAIGN') {
+        if (currentLevel === 3) return canvas.height; 
+        if (currentLevel >= 4 && currentLevel <= 6) return canvas.height * 0.90; 
+    }
+    return canvas.height * 0.75; 
+}
+
 function updateVolumeDisplays() {
     musicVolumeValue.innerText = Math.round(currentMusicVolume * 100);
     sfxVolumeValue.innerText = Math.round(currentSfxVolume * 100);
@@ -151,18 +172,26 @@ function updateVolumes() {
     if (!currentFadeInterval) {
         bgMusic.volume = (gameState === 'MENU') ? currentMusicVolume : 0;
         
-        if (gameState === 'PLAYING' || gameState === 'READY') {
+        if (gameState === 'PLAYING' || gameState === 'READY' || gameState === 'BOSS_INTRO') {
             if (gameMode === 'ENDLESS') {
                 endlessMusic.volume = currentMusicVolume;
                 surfaceMusic.volume = 0;
                 boss1Music.volume = 0;
+                underwaterMusic.volume = 0;
             } else if (gameMode === 'CAMPAIGN') {
-                if (currentLevel === 3) {
+                if (currentLevel >= 1 && currentLevel <= 2) {
+                    surfaceMusic.volume = currentMusicVolume;
+                    boss1Music.volume = 0;
+                    underwaterMusic.volume = 0;
+                    endlessMusic.volume = 0;
+                } else if (currentLevel === 3) {
                     boss1Music.volume = currentMusicVolume;
                     surfaceMusic.volume = 0;
+                    underwaterMusic.volume = 0;
                     endlessMusic.volume = 0;
-                } else {
-                    surfaceMusic.volume = currentMusicVolume;
+                } else if (currentLevel >= 4 && currentLevel <= 6) {
+                    underwaterMusic.volume = currentMusicVolume;
+                    surfaceMusic.volume = 0;
                     boss1Music.volume = 0;
                     endlessMusic.volume = 0;
                 }
@@ -171,6 +200,7 @@ function updateVolumes() {
             endlessMusic.volume = 0;
             surfaceMusic.volume = 0;
             boss1Music.volume = 0;
+            underwaterMusic.volume = 0;
         }
     }
 }
@@ -237,9 +267,12 @@ function backToMainMenu() {
     coins.reset();
     boss.reset();
     bullets.reset();
+    currents.reset();
     
-    const menus = [campaignGameOverMenu, levelCompleteMenu, campaignMenu];
-    menus.forEach(m => m.style.display = 'none');
+    const menus = [campaignGameOverMenu, levelCompleteMenu, campaignMenu, bossIntroUI];
+    menus.forEach(m => {
+        if(m) m.style.display = 'none';
+    });
     
     menuBackground.className = 'retro-bg bg-surface';
     menuBackground.style.backgroundColor = ''; 
@@ -418,7 +451,8 @@ tryPlayMusic();
 
 // --- SCROLLING OBJEKTI ---
 const scaledBgWidth = Math.ceil((1920 / 1085) * 512); 
-const scaledCampaignBgWidth = Math.ceil((576 / 324) * 512); 
+const scaledLvl1BgWidth = Math.ceil((576 / 324) * 512); 
+const scaledLvl4BgWidth = Math.ceil((14080 / 7680) * 512); 
 
 const backgroundLayer = {
     x: 0,
@@ -430,14 +464,13 @@ const backgroundLayer = {
         
         if (gameMode === 'CAMPAIGN') {
             if (currentLevel === 1) {
-                imgToDraw = lvl1BgImg;
-                w = scaledCampaignBgWidth;
+                imgToDraw = lvl1BgImg; w = scaledLvl1BgWidth;
             } else if (currentLevel === 2) {
-                imgToDraw = lvl2BgImg;
-                w = scaledCampaignBgWidth;
+                imgToDraw = lvl2BgImg; w = scaledLvl1BgWidth;
             } else if (currentLevel === 3) {
-                imgToDraw = lvl3BgImg;
-                w = scaledCampaignBgWidth;
+                imgToDraw = lvl3BgImg; w = scaledLvl1BgWidth;
+            } else if (currentLevel === 4) {
+                imgToDraw = lvl4BgImg; w = scaledLvl4BgWidth;
             }
         }
 
@@ -446,14 +479,16 @@ const backgroundLayer = {
         ctx.drawImage(imgToDraw, drawX + w - 1, this.y, w, 512);
     },
     update: function() {
-        if (gameState === 'PLAYING' || gameState === 'MENU' || gameState === 'READY') {
-            let currentDx = (gameState === 'PLAYING') ? gameSpeed * 0.25 : 0.5;
+        if (gameState === 'PLAYING' || gameState === 'MENU' || gameState === 'READY' || gameState === 'BOSS_INTRO') {
+            let currentDx = (gameState === 'PLAYING' || gameState === 'BOSS_INTRO') ? gameSpeed * 0.25 : 0.5;
             this.x -= currentDx;
             
             let w = scaledBgWidth;
-            if (gameMode === 'CAMPAIGN' && (currentLevel === 1 || currentLevel === 2 || currentLevel === 3)) {
-                w = scaledCampaignBgWidth;
+            if (gameMode === 'CAMPAIGN') {
+                if (currentLevel >= 1 && currentLevel <= 3) w = scaledLvl1BgWidth;
+                else if (currentLevel === 4) w = scaledLvl4BgWidth;
             }
+
             if (this.x <= -w) {
                 this.x += w; 
             }
@@ -468,16 +503,22 @@ const floorLayer = {
     height: 512,
     
     draw: function() {
-        // V Level 3 vizualno odstranimo tla!
         if (gameMode === 'CAMPAIGN' && currentLevel === 3) return;
 
+        let imgToDraw = floorImg;
+        let w = scaledBgWidth;
+
+        if (gameMode === 'CAMPAIGN' && currentLevel >= 4 && currentLevel <= 6) {
+            imgToDraw = floor2Img;
+        }
+
         let drawX = Math.floor(this.x);
-        ctx.drawImage(floorImg, drawX, this.y, this.width, this.height);
-        ctx.drawImage(floorImg, drawX + this.width - 1, this.y, this.width, this.height);
+        ctx.drawImage(imgToDraw, drawX, this.y, w, 512);
+        ctx.drawImage(imgToDraw, drawX + w - 1, this.y, w, 512);
     },
     update: function() {
-        if (gameState === 'PLAYING' || gameState === 'MENU' || gameState === 'READY') {
-            let currentDx = (gameState === 'PLAYING') ? gameSpeed : 2;
+        if (gameState === 'PLAYING' || gameState === 'MENU' || gameState === 'READY' || gameState === 'BOSS_INTRO') {
+            let currentDx = (gameState === 'PLAYING' || gameState === 'BOSS_INTRO') ? gameSpeed : 2;
             this.x -= currentDx;
             if (this.x <= -this.width) {
                 this.x += this.width;
@@ -485,11 +526,7 @@ const floorLayer = {
         }
         
         if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
-            // Logika smrti ob trku ob tla
-            let hitGroundY = canvas.height * 0.75; 
-            if (gameMode === 'CAMPAIGN' && currentLevel === 3) {
-                hitGroundY = canvas.height; // V level 3 ni tal, zato je meja smrti čisto na dnu
-            }
+            let hitGroundY = getHitGroundY(); 
 
             const bh = bird.getHitbox();
             if (bh.y + bh.h >= hitGroundY) {
@@ -537,14 +574,15 @@ const bird = {
         ctx.restore();
     },
     update: function() {
-        if (gameState === 'MENU' || gameState === 'READY') {
+        // Med intro animacijo ptič samo lebdi in varno čaka
+        if (gameState === 'MENU' || gameState === 'READY' || gameState === 'BOSS_INTRO') {
             this.y = 150 + Math.sin(Date.now() / 200) * 5;
         } 
         else if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
             this.velocity += this.gravity;
             this.y += this.velocity;
             
-            // Mehanika Vetra (Samo v Level 3)
+            // Mehanika Vetra
             if (gameState === 'PLAYING' && gameMode === 'CAMPAIGN' && currentLevel === 3) {
                 if (boss.windActive) {
                     this.x -= 1.5; 
@@ -555,12 +593,9 @@ const bird = {
                 }
             }
 
-            let hitGroundY = canvas.height * 0.75; 
-            if (gameMode === 'CAMPAIGN' && currentLevel === 3) {
-                hitGroundY = canvas.height; 
-            }
-            const bh = this.getHitbox();
+            let hitGroundY = getHitGroundY();
             
+            const bh = this.getHitbox();
             if (bh.y + bh.h >= hitGroundY) {
                 this.y = hitGroundY - (this.height + this.hitboxH) / 2;
                 this.velocity = 0; 
@@ -568,6 +603,7 @@ const bird = {
         }
     },
     flap: function() {
+        // Igralec lahko ptiča upravlja šele, ko se igra zares začne
         if (gameState === 'PLAYING') {
             this.velocity = this.jump;
             flapSound.currentTime = 0;
@@ -578,6 +614,67 @@ const bird = {
         this.x = 50; 
         this.y = 150;
         this.velocity = 0;
+        
+        if (gameMode === 'CAMPAIGN' && currentLevel >= 4 && currentLevel <= 6) {
+            this.gravity = 0.12; 
+            this.jump = -3.2; 
+        } else {
+            this.gravity = 0.25; 
+            this.jump = -4.5; 
+        }
+    }
+};
+
+// --- MORSKI TOKOVI (Level 4) ---
+const currents = {
+    items: [],
+    width: 80,
+    
+    draw: function() {
+        if (gameMode !== 'CAMPAIGN' || currentLevel !== 4) return;
+        
+        let currentFloorY = getHitGroundY();
+
+        for (let c of this.items) {
+            ctx.fillStyle = c.dir < 0 ? 'rgba(50, 200, 255, 0.2)' : 'rgba(20, 100, 200, 0.2)';
+            ctx.fillRect(c.x, 0, this.width, currentFloorY);
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            for (let b of c.bubbles) {
+                ctx.beginPath();
+                ctx.arc(c.x + b.offsetX, b.y, b.r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+    },
+    update: function() {
+        if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel !== 4) return;
+
+        let currentFloorY = getHitGroundY();
+
+        for (let i = 0; i < this.items.length; i++) {
+            let c = this.items[i];
+            c.x -= gameSpeed;
+            
+            for (let b of c.bubbles) {
+                b.y += c.dir * (gameSpeed + 2);
+                if (c.dir < 0 && b.y < -10) b.y = currentFloorY + 10;
+                if (c.dir > 0 && b.y > currentFloorY + 10) b.y = -10;
+            }
+            
+            const bh = bird.getHitbox();
+            if (bh.x + bh.w > c.x && bh.x < c.x + this.width) {
+                bird.velocity += c.dir * 0.15; 
+            }
+            
+            if (c.x + this.width < 0) {
+                this.items.shift();
+                i--;
+            }
+        }
+    },
+    reset: function() {
+        this.items = [];
     }
 };
 
@@ -593,7 +690,8 @@ const boss = {
     shootTimer: 0,
     
     draw: function() {
-        if (!this.active || gameState !== 'PLAYING') return;
+        // Boss naj se riše tudi med intro animacijo
+        if (!this.active || (gameState !== 'PLAYING' && gameState !== 'BOSS_INTRO')) return;
 
         if (this.windActive) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
@@ -607,13 +705,24 @@ const boss = {
         ctx.drawImage(birdBossImg, this.x, this.y, this.width, this.height);
     },
     update: function() {
-        if (gameMode !== 'CAMPAIGN' || currentLevel !== 3 || gameState !== 'PLAYING') return;
+        if (gameMode !== 'CAMPAIGN' || currentLevel !== 3) return;
+        if (gameState !== 'PLAYING' && gameState !== 'BOSS_INTRO') return;
         
+        // Med INTRO animacijo se Boss samo nežno premika gor in dol, ne napada
+        if (gameState === 'BOSS_INTRO') {
+            this.active = true;
+            this.x = canvas.width - this.width - 10;
+            let hitGroundY = getHitGroundY();
+            let centerY = hitGroundY / 2 - this.height / 2;
+            this.y = centerY + Math.sin(frames * 0.04) * 80;
+            return;
+        }
+
         if (distanceTraveled < currentLevelLength) {
             this.active = true;
             
             this.x = canvas.width - this.width - 10;
-            let hitGroundY = canvas.height;
+            let hitGroundY = getHitGroundY();
             let centerY = hitGroundY / 2 - this.height / 2;
             this.y = centerY + Math.sin(frames * 0.04) * 80;
 
@@ -716,7 +825,7 @@ const coins = {
                 ];
 
                 if (distanceTraveled >= triggerDistances[coinsSpawned]) {
-                    let hitGroundY = canvas.height;
+                    let hitGroundY = getHitGroundY();
                     this.items.push({
                         x: canvas.width + 50, 
                         baseY: Math.random() * (hitGroundY - 150) + 50,
@@ -777,6 +886,11 @@ const pipes = {
     gap: 120, 
     
     draw: function() {
+        let drawImg = pipeImg;
+        if (gameMode === 'CAMPAIGN' && currentLevel >= 4 && currentLevel <= 6) {
+            drawImg = pipe2Img; 
+        }
+
         for (let i = 0; i < this.items.length; i++) {
             let p = this.items[i];
             
@@ -788,10 +902,10 @@ const pipes = {
             ctx.save();
             ctx.translate(p.x, currentY); 
             ctx.scale(1, -1); 
-            ctx.drawImage(pipeImg, 0, 0, this.width, 512);
+            ctx.drawImage(drawImg, 0, 0, this.width, 512);
             ctx.restore();
 
-            ctx.drawImage(pipeImg, p.x, currentY + this.gap, this.width, 512);
+            ctx.drawImage(drawImg, p.x, currentY + this.gap, this.width, 512);
         }
     },
     update: function() {
@@ -808,7 +922,7 @@ const pipes = {
         if (pipeSpawnTimer >= 220 && !stopSpawning) {
             pipeSpawnTimer = 0; 
             
-            let hitGroundY = canvas.height * 0.75; 
+            let hitGroundY = getHitGroundY(); 
             let minPipeHeight = 50; 
             
             let amplitude = (gameMode === 'CAMPAIGN' && currentLevel === 2) ? 45 : 0;
@@ -824,6 +938,25 @@ const pipes = {
                 bobPhase: pBobPhase,
                 passed: false 
             });
+
+            if (gameMode === 'CAMPAIGN' && currentLevel === 4) {
+                if (Math.random() > 0.4) { 
+                    let dir = Math.random() > 0.5 ? 1 : -1;
+                    let bubbles = [];
+                    for(let j=0; j<15; j++) {
+                        bubbles.push({
+                            offsetX: Math.random() * 60 + 10,
+                            y: Math.random() * 512,
+                            r: Math.random() * 3 + 2
+                        });
+                    }
+                    currents.items.push({
+                        x: canvas.width + 110, 
+                        dir: dir,
+                        bubbles: bubbles
+                    });
+                }
+            }
 
             if (gameMode === 'CAMPAIGN' && coinsSpawned < 3) {
                 let spawnOffset = canvas.width - bird.x; 
@@ -888,7 +1021,6 @@ const pipes = {
     }
 };
 
-// ZMAGA V NIVOJU
 function levelComplete() {
     if (gameState === 'GAMEOVER' || gameState === 'VICTORY') return; 
     gameState = 'VICTORY';
@@ -916,6 +1048,8 @@ function levelComplete() {
     surfaceMusic.currentTime = 0;
     boss1Music.pause();
     boss1Music.currentTime = 0;
+    underwaterMusic.pause();
+    underwaterMusic.currentTime = 0;
 
     setTimeout(() => {
         let fadeInterval = setInterval(() => {
@@ -929,6 +1063,7 @@ function levelComplete() {
                 coins.reset();
                 boss.reset();
                 bullets.reset();
+                currents.reset();
                 
                 campaignUI.style.display = 'none';
                 
@@ -955,7 +1090,6 @@ function levelComplete() {
     }, 1000); 
 }
 
-// PORAZ
 function gameOver() {
     if (gameState === 'GAMEOVER' || gameState === 'VICTORY') return; 
     gameState = 'GAMEOVER';
@@ -971,6 +1105,8 @@ function gameOver() {
     surfaceMusic.currentTime = 0;
     boss1Music.pause();
     boss1Music.currentTime = 0;
+    underwaterMusic.pause();
+    underwaterMusic.currentTime = 0;
     
     if (gameMode === 'ENDLESS') {
         if (score > bestScore) {
@@ -994,6 +1130,7 @@ function gameOver() {
                 coins.reset();
                 boss.reset();
                 bullets.reset();
+                currents.reset();
                 gameState = 'MENU';
                 
                 campaignUI.style.display = 'none';
@@ -1040,6 +1177,7 @@ function resetGame(mode, level = 0) {
     coins.reset();
     boss.reset();
     bullets.reset();
+    currents.reset();
     
     score = 0;
     frames = 0;
@@ -1063,31 +1201,49 @@ function resetGame(mode, level = 0) {
     blackFadeAlpha = 0; 
     gameState = 'READY'; 
     
-    const menus = [menuBackground, mainMenu, settingsMenu, scoreMenu, campaignMenu, campaignGameOverMenu, levelCompleteMenu];
+    const menus = [menuBackground, mainMenu, settingsMenu, scoreMenu, campaignMenu, campaignGameOverMenu, levelCompleteMenu, bossIntroUI];
     menus.forEach(menu => {
-        menu.style.transition = 'opacity 0.4s ease';
-        menu.style.opacity = '0';
+        if(menu) {
+            menu.style.transition = 'opacity 0.4s ease';
+            menu.style.opacity = '0';
+        }
     });
 
     setTimeout(() => {
         menus.forEach(menu => {
-            menu.style.display = 'none';
-            menu.style.opacity = '1'; 
-            menu.style.transition = 'none';
+            if(menu) {
+                menu.style.display = 'none';
+                menu.style.opacity = '1'; 
+                menu.style.transition = 'none';
+            }
         });
         
         if (gameMode === 'CAMPAIGN') {
             campaignUI.style.display = 'flex';
             if (currentLevel === 3) {
                 crossfadeMusic(bgMusic, boss1Music);
+                
+                // --- Prikaz novega Boss Intro UI ---
+                gameState = 'BOSS_INTRO';
+                bossIntroUI.style.display = 'flex';
+                
+                setTimeout(() => {
+                    bossIntroUI.style.display = 'none';
+                    gameState = 'PLAYING';
+                }, 3500); // 3.5 sekund uvoda
+
+            } else if (currentLevel >= 4 && currentLevel <= 6) {
+                crossfadeMusic(bgMusic, underwaterMusic);
+                gameState = 'PLAYING';
             } else {
                 crossfadeMusic(bgMusic, surfaceMusic);
+                gameState = 'PLAYING';
             }
         } else {
             crossfadeMusic(bgMusic, endlessMusic);
+            gameState = 'PLAYING';
         }
         
-        gameState = 'PLAYING'; 
     }, 400); 
 }
 
@@ -1108,6 +1264,9 @@ function draw(now) {
         backgroundLayer.update();
         backgroundLayer.draw();
 
+        currents.update();
+        currents.draw();
+
         pipes.update();
         pipes.draw();
         
@@ -1126,9 +1285,11 @@ function draw(now) {
         bird.update();
         bird.draw();
 
-        if (gameState === 'PLAYING' || gameState === 'GAMEOVER' || gameState === 'VICTORY' || gameState === 'READY') {
-            if (gameState === 'PLAYING') {
+        if (gameState === 'PLAYING' || gameState === 'GAMEOVER' || gameState === 'VICTORY' || gameState === 'READY' || gameState === 'BOSS_INTRO') {
+            if (gameState === 'PLAYING' || gameState === 'BOSS_INTRO') {
                 frames++;
+            }
+            if (gameState === 'PLAYING') {
                 distanceTraveled += gameSpeed; 
                 
                 if (gameMode === 'ENDLESS' && gameSpeed < maxGameSpeed) {
@@ -1180,12 +1341,15 @@ document.addEventListener('keydown', (e) => {
 
 startBtn.addEventListener('click', () => resetGame('ENDLESS'));
 
-document.getElementById('lvlBtn1').addEventListener('click', () => resetGame('CAMPAIGN', 1));
-document.getElementById('lvlBtn2').addEventListener('click', () => resetGame('CAMPAIGN', 2));
-document.getElementById('lvlBtn3').addEventListener('click', () => resetGame('CAMPAIGN', 3));
+for (let i = 1; i <= 3; i++) {
+    document.getElementById(`lvlBtn${i}`).addEventListener('click', () => {
+        let levelToLaunch = currentCampaignPage * 3 + i;
+        resetGame('CAMPAIGN', levelToLaunch);
+    });
+}
 
 let assetsLoaded = 0;
-const totalAssets = 8; 
+const totalAssets = 13; 
 
 function checkAssets() {
     assetsLoaded++;
@@ -1197,11 +1361,16 @@ function checkAssets() {
     }
 }
 
+if (birdImg.complete) checkAssets(); else birdImg.onload = checkAssets;
+if (pipeImg.complete) checkAssets(); else pipeImg.onload = checkAssets;
+if (pipe2Img.complete) checkAssets(); else pipe2Img.onload = checkAssets;
 if (floorImg.complete) checkAssets(); else floorImg.onload = checkAssets;
+if (floor2Img.complete) checkAssets(); else floor2Img.onload = checkAssets;
 if (backgroundImg.complete) checkAssets(); else backgroundImg.onload = checkAssets;
 if (coinImg.complete) checkAssets(); else coinImg.onload = checkAssets;
 if (lvl1BgImg.complete) checkAssets(); else lvl1BgImg.onload = checkAssets;
 if (lvl2BgImg.complete) checkAssets(); else lvl2BgImg.onload = checkAssets;
 if (lvl3BgImg.complete) checkAssets(); else lvl3BgImg.onload = checkAssets;
+if (lvl4BgImg.complete) checkAssets(); else lvl4BgImg.onload = checkAssets;
 if (birdBossImg.complete) checkAssets(); else birdBossImg.onload = checkAssets;
 if (bulletImg.complete) checkAssets(); else bulletImg.onload = checkAssets;
