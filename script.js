@@ -11,7 +11,8 @@ const campaignUI = document.getElementById('campaignUI');
 
 const campaignGameOverMenu = document.getElementById('campaignGameOverMenu');
 const levelCompleteMenu = document.getElementById('levelCompleteMenu');
-const bossIntroUI = document.getElementById('bossIntroUI'); // DODANO
+const bossIntroUI = document.getElementById('bossIntroUI');
+const bossOutroUI = document.getElementById('bossOutroUI'); // DODANO
 
 const startBtn = document.getElementById('startBtn');
 const openCampaignBtn = document.getElementById('openCampaignBtn');
@@ -120,7 +121,7 @@ const storage = {
 
 // --- SPREMENLJIVKE IGRE ---
 let frames = 0;
-let gameState = 'MENU'; // 'MENU', 'READY', 'PLAYING', 'BOSS_INTRO', 'GAMEOVER', 'VICTORY'
+let gameState = 'MENU'; // 'MENU', 'READY', 'PLAYING', 'BOSS_INTRO', 'BOSS_OUTRO', 'GAMEOVER', 'VICTORY'
 let gameMode = 'ENDLESS'; 
 let currentLevel = 0; 
 
@@ -172,7 +173,7 @@ function updateVolumes() {
     if (!currentFadeInterval) {
         bgMusic.volume = (gameState === 'MENU') ? currentMusicVolume : 0;
         
-        if (gameState === 'PLAYING' || gameState === 'READY' || gameState === 'BOSS_INTRO') {
+        if (gameState === 'PLAYING' || gameState === 'READY' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
             if (gameMode === 'ENDLESS') {
                 endlessMusic.volume = currentMusicVolume;
                 surfaceMusic.volume = 0;
@@ -269,7 +270,7 @@ function backToMainMenu() {
     bullets.reset();
     currents.reset();
     
-    const menus = [campaignGameOverMenu, levelCompleteMenu, campaignMenu, bossIntroUI];
+    const menus = [campaignGameOverMenu, levelCompleteMenu, campaignMenu, bossIntroUI, bossOutroUI];
     menus.forEach(m => {
         if(m) m.style.display = 'none';
     });
@@ -479,8 +480,8 @@ const backgroundLayer = {
         ctx.drawImage(imgToDraw, drawX + w - 1, this.y, w, 512);
     },
     update: function() {
-        if (gameState === 'PLAYING' || gameState === 'MENU' || gameState === 'READY' || gameState === 'BOSS_INTRO') {
-            let currentDx = (gameState === 'PLAYING' || gameState === 'BOSS_INTRO') ? gameSpeed * 0.25 : 0.5;
+        if (gameState === 'PLAYING' || gameState === 'MENU' || gameState === 'READY' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
+            let currentDx = (gameState === 'PLAYING' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') ? gameSpeed * 0.25 : 0.5;
             this.x -= currentDx;
             
             let w = scaledBgWidth;
@@ -517,8 +518,8 @@ const floorLayer = {
         ctx.drawImage(imgToDraw, drawX + w - 1, this.y, w, 512);
     },
     update: function() {
-        if (gameState === 'PLAYING' || gameState === 'MENU' || gameState === 'READY' || gameState === 'BOSS_INTRO') {
-            let currentDx = (gameState === 'PLAYING' || gameState === 'BOSS_INTRO') ? gameSpeed : 2;
+        if (gameState === 'PLAYING' || gameState === 'MENU' || gameState === 'READY' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
+            let currentDx = (gameState === 'PLAYING' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') ? gameSpeed : 2;
             this.x -= currentDx;
             if (this.x <= -this.width) {
                 this.x += this.width;
@@ -574,15 +575,16 @@ const bird = {
         ctx.restore();
     },
     update: function() {
-        // Med intro animacijo ptič samo lebdi in varno čaka
         if (gameState === 'MENU' || gameState === 'READY' || gameState === 'BOSS_INTRO') {
             this.y = 150 + Math.sin(Date.now() / 200) * 5;
         } 
+        else if (gameState === 'BOSS_OUTRO') {
+            this.y += Math.sin(frames * 0.1) * 1.5; // Nežno lebdenje ob zmagi
+        }
         else if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
             this.velocity += this.gravity;
             this.y += this.velocity;
             
-            // Mehanika Vetra
             if (gameState === 'PLAYING' && gameMode === 'CAMPAIGN' && currentLevel === 3) {
                 if (boss.windActive) {
                     this.x -= 1.5; 
@@ -603,7 +605,6 @@ const bird = {
         }
     },
     flap: function() {
-        // Igralec lahko ptiča upravlja šele, ko se igra zares začne
         if (gameState === 'PLAYING') {
             this.velocity = this.jump;
             flapSound.currentTime = 0;
@@ -648,6 +649,13 @@ const currents = {
         }
     },
     update: function() {
+        if (gameState === 'BOSS_OUTRO') {
+            for (let i = 0; i < this.items.length; i++) {
+                this.items[i].x -= gameSpeed;
+            }
+            return;
+        }
+
         if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel !== 4) return;
 
         let currentFloorY = getHitGroundY();
@@ -688,12 +696,12 @@ const boss = {
     windTimer: 0,
     windActive: false,
     shootTimer: 0,
+    rotation: 0, // DODANO: Za animacijo padanja ob porazu
     
     draw: function() {
-        // Boss naj se riše tudi med intro animacijo
-        if (!this.active || (gameState !== 'PLAYING' && gameState !== 'BOSS_INTRO')) return;
+        if (!this.active || (gameState !== 'PLAYING' && gameState !== 'BOSS_INTRO' && gameState !== 'BOSS_OUTRO')) return;
 
-        if (this.windActive) {
+        if (this.windActive && gameState !== 'BOSS_OUTRO') {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
             for (let i = 0; i < 8; i++) {
                 let lx = canvas.width - ((frames * 18 + i * 87) % canvas.width);
@@ -702,13 +710,26 @@ const boss = {
             }
         }
 
-        ctx.drawImage(birdBossImg, this.x, this.y, this.width, this.height);
+        ctx.save();
+        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+        if (gameState === 'BOSS_OUTRO') {
+            this.rotation = (this.rotation || 0) + 0.05;
+            ctx.rotate(this.rotation);
+        }
+        ctx.drawImage(birdBossImg, -this.width / 2, -this.height / 2, this.width, this.height);
+        ctx.restore();
     },
     update: function() {
         if (gameMode !== 'CAMPAIGN' || currentLevel !== 3) return;
+        
+        if (gameState === 'BOSS_OUTRO') {
+            this.y += 6; // Boss nemočno pade navzdol
+            this.x += 1;
+            return;
+        }
+
         if (gameState !== 'PLAYING' && gameState !== 'BOSS_INTRO') return;
         
-        // Med INTRO animacijo se Boss samo nežno premika gor in dol, ne napada
         if (gameState === 'BOSS_INTRO') {
             this.active = true;
             this.x = canvas.width - this.width - 10;
@@ -755,6 +776,7 @@ const boss = {
         this.windTimer = 0;
         this.windActive = false;
         this.shootTimer = 0;
+        this.rotation = 0;
     }
 };
 
@@ -766,6 +788,13 @@ const bullets = {
         }
     },
     update: function() {
+        if (gameState === 'BOSS_OUTRO') {
+            for (let i = 0; i < this.items.length; i++) {
+                this.items[i].x -= (gameSpeed + 3);
+            }
+            return;
+        }
+
         if (gameState !== 'PLAYING') return;
 
         for (let i = 0; i < this.items.length; i++) {
@@ -813,6 +842,13 @@ const coins = {
         }
     },
     update: function() {
+        if (gameState === 'BOSS_OUTRO') {
+            for (let i = 0; i < this.items.length; i++) {
+                this.items[i].x -= gameSpeed;
+            }
+            return;
+        }
+
         if (gameState !== 'PLAYING') return;
 
         if (gameMode === 'CAMPAIGN' && currentLevel === 3) {
@@ -909,6 +945,13 @@ const pipes = {
         }
     },
     update: function() {
+        if (gameState === 'BOSS_OUTRO') {
+            for (let i = 0; i < this.items.length; i++) {
+                this.items[i].x -= gameSpeed;
+            }
+            return;
+        }
+
         if (gameState !== 'PLAYING') return; 
 
         if (gameMode === 'CAMPAIGN' && currentLevel === 3) return;
@@ -1022,8 +1065,8 @@ const pipes = {
 };
 
 function levelComplete() {
-    if (gameState === 'GAMEOVER' || gameState === 'VICTORY') return; 
-    gameState = 'VICTORY';
+    // Spremenjen pogoj, da upošteva tudi novo stanje
+    if (gameState === 'GAMEOVER' || gameState === 'VICTORY' || gameState === 'BOSS_OUTRO') return; 
 
     for (let i = 0; i < 3; i++) {
         if (coinsCollectedCurrent[i]) {
@@ -1051,43 +1094,66 @@ function levelComplete() {
     underwaterMusic.pause();
     underwaterMusic.currentTime = 0;
 
-    setTimeout(() => {
-        let fadeInterval = setInterval(() => {
-            blackFadeAlpha += 0.05;
+    if (gameMode === 'CAMPAIGN' && currentLevel === 3) {
+        // --- NOVO: BOSS OUTRO ---
+        gameState = 'BOSS_OUTRO';
+        bossOutroUI.style.display = 'flex';
+        
+        // Zvok udarca ob porazu bossa
+        hitSound.currentTime = 0;
+        hitSound.play().catch(e => {});
+        
+        setTimeout(() => {
+            bossOutroUI.style.display = 'none';
+            triggerVictoryFade();
+        }, 3500); 
+    } else {
+        // Normalni nivoji - takoj prehod
+        gameState = 'VICTORY';
+        setTimeout(() => {
+            triggerVictoryFade();
+        }, 1000); 
+    }
+}
+
+// Ločena funkcija za vizualni fade v "Level Complete" meni
+function triggerVictoryFade() {
+    gameState = 'VICTORY';
+    let fadeInterval = setInterval(() => {
+        blackFadeAlpha += 0.05;
+        
+        if (blackFadeAlpha >= 1) {
+            clearInterval(fadeInterval);
             
-            if (blackFadeAlpha >= 1) {
-                clearInterval(fadeInterval);
-                
-                bird.reset();
-                pipes.reset();
-                coins.reset();
-                boss.reset();
-                bullets.reset();
-                currents.reset();
-                
-                campaignUI.style.display = 'none';
-                
-                menuBackground.className = 'retro-bg';
-                menuBackground.style.backgroundColor = '#b08d13'; 
-                menuBackground.style.display = 'block'; 
-                
-                levelCompleteMenu.style.transition = 'none';
-                levelCompleteMenu.style.opacity = '0';
-                levelCompleteMenu.style.display = 'flex';
-                
-                updateCampaignUI(); 
-                
-                victorySound.currentTime = 0;
-                victorySound.play().catch(e => {});
-                
-                requestAnimationFrame(() => {
-                    levelCompleteMenu.style.transition = 'opacity 0.8s ease-in-out';
-                    levelCompleteMenu.style.opacity = '1';
-                    blackFadeAlpha = 0; 
-                });
-            }
-        }, 30);
-    }, 1000); 
+            bird.reset();
+            pipes.reset();
+            coins.reset();
+            boss.reset();
+            bullets.reset();
+            currents.reset();
+            
+            campaignUI.style.display = 'none';
+            
+            menuBackground.className = 'retro-bg';
+            menuBackground.style.backgroundColor = '#b08d13'; 
+            menuBackground.style.display = 'block'; 
+            
+            levelCompleteMenu.style.transition = 'none';
+            levelCompleteMenu.style.opacity = '0';
+            levelCompleteMenu.style.display = 'flex';
+            
+            updateCampaignUI(); 
+            
+            victorySound.currentTime = 0;
+            victorySound.play().catch(e => {});
+            
+            requestAnimationFrame(() => {
+                levelCompleteMenu.style.transition = 'opacity 0.8s ease-in-out';
+                levelCompleteMenu.style.opacity = '1';
+                blackFadeAlpha = 0; 
+            });
+        }
+    }, 30);
 }
 
 function gameOver() {
@@ -1201,7 +1267,7 @@ function resetGame(mode, level = 0) {
     blackFadeAlpha = 0; 
     gameState = 'READY'; 
     
-    const menus = [menuBackground, mainMenu, settingsMenu, scoreMenu, campaignMenu, campaignGameOverMenu, levelCompleteMenu, bossIntroUI];
+    const menus = [menuBackground, mainMenu, settingsMenu, scoreMenu, campaignMenu, campaignGameOverMenu, levelCompleteMenu, bossIntroUI, bossOutroUI];
     menus.forEach(menu => {
         if(menu) {
             menu.style.transition = 'opacity 0.4s ease';
@@ -1223,14 +1289,13 @@ function resetGame(mode, level = 0) {
             if (currentLevel === 3) {
                 crossfadeMusic(bgMusic, boss1Music);
                 
-                // --- Prikaz novega Boss Intro UI ---
                 gameState = 'BOSS_INTRO';
                 bossIntroUI.style.display = 'flex';
                 
                 setTimeout(() => {
                     bossIntroUI.style.display = 'none';
                     gameState = 'PLAYING';
-                }, 3500); // 3.5 sekund uvoda
+                }, 3500); 
 
             } else if (currentLevel >= 4 && currentLevel <= 6) {
                 crossfadeMusic(bgMusic, underwaterMusic);
@@ -1285,8 +1350,8 @@ function draw(now) {
         bird.update();
         bird.draw();
 
-        if (gameState === 'PLAYING' || gameState === 'GAMEOVER' || gameState === 'VICTORY' || gameState === 'READY' || gameState === 'BOSS_INTRO') {
-            if (gameState === 'PLAYING' || gameState === 'BOSS_INTRO') {
+        if (gameState === 'PLAYING' || gameState === 'GAMEOVER' || gameState === 'VICTORY' || gameState === 'READY' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
+            if (gameState === 'PLAYING' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
                 frames++;
             }
             if (gameState === 'PLAYING') {
