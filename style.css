@@ -380,7 +380,7 @@ canvas {
     box-shadow: 0 0 1.5cqw rgba(255, 208, 75, 0.8);
 }
 
-/* --- BOSS INTRO CINEMATICS --- */
+/* --- BOSS INTRO & OUTRO CINEMATICS --- */
 .boss-cinematic-bar {
     position: absolute;
     left: 0;
@@ -430,6 +430,35 @@ canvas {
     font-size: 5cqw;
     text-shadow: 0.4cqw 0.4cqw 0 #000;
     animation: bossFlash 0.4s infinite alternate;
+}
+
+/* OUTRO STYLES */
+.boss-outro-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 17;
+}
+
+.boss-outro-title {
+    color: #ffd04b;
+    font-size: 7cqw;
+    text-align: center;
+    line-height: 1.4;
+    text-shadow: 0.5cqw 0.5cqw 0 #000, -0.3cqw -0.3cqw 0 #d11f1f;
+    margin-bottom: 3cqw;
+    animation: bossZoomIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.boss-outro-subtitle {
+    color: #fff;
+    font-size: 5cqw;
+    text-shadow: 0.5cqw 0.5cqw 0 #000;
+    letter-spacing: 0.5cqw;
+    animation: bossFadeIn 1s forwards;
+    animation-delay: 0.5s;
+    opacity: 0;
 }
 
 @keyframes cinematicSlideDown {
