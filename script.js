@@ -643,25 +643,37 @@ const bird = {
     }
 };
 
-// --- MORSKI TOKOVI (Level 4) ---
+// --- REDESIGNED BUBBLES (Level 4) ---
 const currents = {
     items: [],
-    width: 80,
     
     draw: function() {
         if (gameMode !== 'CAMPAIGN' || currentLevel !== 4) return;
-        
-        let currentFloorY = getHitGroundY();
 
-        for (let c of this.items) {
-            ctx.fillStyle = c.dir < 0 ? 'rgba(50, 200, 255, 0.2)' : 'rgba(20, 100, 200, 0.2)';
-            ctx.fillRect(c.x, 0, this.width, currentFloorY);
+        for (let b of this.items) {
+            let actualX = b.x + Math.sin(frames * 0.05 + b.wobblePhase) * 20;
             
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-            for (let b of c.bubbles) {
+            if (!b.popped) {
                 ctx.beginPath();
-                ctx.arc(c.x + b.offsetX, b.y, b.r, 0, Math.PI * 2);
+                ctx.arc(actualX, b.y, b.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(100, 200, 255, 0.4)';
                 ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.stroke();
+
+                // Bubble highlight
+                ctx.beginPath();
+                ctx.arc(actualX - b.radius * 0.3, b.y - b.radius * 0.3, b.radius * 0.2, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.fill();
+            } else if (b.popFrames < 10) {
+                // Draw pop animation (expanding fading circle)
+                ctx.beginPath();
+                ctx.arc(actualX, b.y, b.radius + b.popFrames * 2, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${1 - b.popFrames/10})`;
+                ctx.lineWidth = 2;
+                ctx.stroke();
             }
         }
     },
@@ -675,25 +687,44 @@ const currents = {
 
         if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel !== 4) return;
 
-        let currentFloorY = getHitGroundY();
-
         for (let i = 0; i < this.items.length; i++) {
-            let c = this.items[i];
-            c.x -= gameSpeed;
+            let b = this.items[i];
+            b.x -= gameSpeed;
             
-            for (let b of c.bubbles) {
-                b.y += c.dir * (gameSpeed + 2);
-                if (c.dir < 0 && b.y < -10) b.y = currentFloorY + 10;
-                if (c.dir > 0 && b.y > currentFloorY + 10) b.y = -10;
+            if (!b.popped) {
+                b.y += b.speedY; // Float up
+                let actualX = b.x + Math.sin(frames * 0.05 + b.wobblePhase) * 20;
+
+                const bh = bird.getHitbox();
+                
+                // Circle vs Rectangle collision test
+                let testX = actualX;
+                let testY = b.y;
+
+                if (actualX < bh.x) testX = bh.x;
+                else if (actualX > bh.x + bh.w) testX = bh.x + bh.w;
+
+                if (b.y < bh.y) testY = bh.y;
+                else if (b.y > bh.y + bh.h) testY = bh.y + bh.h;
+
+                let distX = actualX - testX;
+                let distY = b.y - testY;
+                let distance = Math.sqrt((distX*distX) + (distY*distY));
+
+                if (distance <= b.radius) {
+                    b.popped = true;
+                    b.popFrames = 0;
+                    bird.velocity = -3.5; // Bounce the bird upon popping
+                    flapSound.currentTime = 0;
+                    flapSound.play().catch(e => {});
+                }
+            } else {
+                b.popFrames++;
             }
             
-            const bh = bird.getHitbox();
-            if (bh.x + bh.w > c.x && bh.x < c.x + this.width) {
-                bird.velocity += c.dir * 0.15; 
-            }
-            
-            if (c.x + this.width < 0) {
-                this.items.shift();
+            // Clean up bubbles that are fully popped or went off-screen
+            if (b.x + b.radius * 2 < 0 || (b.popped && b.popFrames >= 10)) {
+                this.items.splice(i, 1);
                 i--;
             }
         }
@@ -948,7 +979,6 @@ const pipes = {
         }
 
         // Calculate proportional height based on actual image dimensions
-        // Formula: original_height * (target_width / original_width)
         let topPipeHeight = drawImgTop.naturalWidth > 0 ? drawImgTop.naturalHeight * (this.width / drawImgTop.naturalWidth) : 320;
         let bottomPipeHeight = drawImgBottom.naturalWidth > 0 ? drawImgBottom.naturalHeight * (this.width / drawImgBottom.naturalWidth) : 320;
 
@@ -1007,22 +1037,21 @@ const pipes = {
                 passed: false 
             });
 
+            // SPAWN REDESIGNED BUBBLES IN LEVEL 4
             if (gameMode === 'CAMPAIGN' && currentLevel === 4) {
-                if (Math.random() > 0.4) { 
-                    let dir = Math.random() > 0.5 ? 1 : -1;
-                    let bubbles = [];
-                    for(let j=0; j<15; j++) {
-                        bubbles.push({
-                            offsetX: Math.random() * 60 + 10,
-                            y: Math.random() * 512,
-                            r: Math.random() * 3 + 2
+                if (Math.random() > 0.3) { 
+                    let numBubbles = Math.floor(Math.random() * 3) + 1; // 1 to 3 bubbles
+                    for(let j = 0; j < numBubbles; j++) {
+                        currents.items.push({
+                            x: canvas.width + 80 + Math.random() * 60, 
+                            y: canvas.height + 20 + Math.random() * 80, // Start below floor
+                            radius: 12 + Math.random() * 12,
+                            speedY: -(1 + Math.random() * 1.5), // Float upwards
+                            wobblePhase: Math.random() * Math.PI * 2,
+                            popped: false,
+                            popFrames: 0
                         });
                     }
-                    currents.items.push({
-                        x: canvas.width + 110, 
-                        dir: dir,
-                        bubbles: bubbles
-                    });
                 }
             }
 
