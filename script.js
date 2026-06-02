@@ -12,7 +12,7 @@ const campaignUI = document.getElementById('campaignUI');
 const campaignGameOverMenu = document.getElementById('campaignGameOverMenu');
 const levelCompleteMenu = document.getElementById('levelCompleteMenu');
 const bossIntroUI = document.getElementById('bossIntroUI');
-const bossOutroUI = document.getElementById('bossOutroUI'); // DODANO
+const bossOutroUI = document.getElementById('bossOutroUI');
 
 const startBtn = document.getElementById('startBtn');
 const openCampaignBtn = document.getElementById('openCampaignBtn');
@@ -54,6 +54,9 @@ pipeImg.src = 'assets/textures/pipe.png';
 
 const pipe2Img = new Image();
 pipe2Img.src = 'assets/textures/pipe2.png'; 
+
+const pipe3Img = new Image();
+pipe3Img.src = 'assets/textures/pipe3.png'; 
 
 const floorImg = new Image();
 floorImg.src = 'assets/backgrounds/floor.png';
@@ -121,7 +124,7 @@ const storage = {
 
 // --- SPREMENLJIVKE IGRE ---
 let frames = 0;
-let gameState = 'MENU'; // 'MENU', 'READY', 'PLAYING', 'BOSS_INTRO', 'BOSS_OUTRO', 'GAMEOVER', 'VICTORY'
+let gameState = 'MENU'; 
 let gameMode = 'ENDLESS'; 
 let currentLevel = 0; 
 
@@ -149,11 +152,9 @@ let currentSfxVolume = savedSfxVolume !== null ? parseFloat(savedSfxVolume) : 0.
 
 let currentFadeInterval = null;
 
-// PAMETNA FUNKCIJA ZA VIŠINO TAL GLEDE NA NIVO
 function getHitGroundY() {
-    if (gameMode === 'CAMPAIGN') {
-        if (currentLevel === 3) return canvas.height; 
-        if (currentLevel >= 4 && currentLevel <= 6) return canvas.height * 0.90; 
+    if (gameMode === 'CAMPAIGN' && currentLevel === 3) {
+        return canvas.height; 
     }
     return canvas.height * 0.75; 
 }
@@ -266,6 +267,7 @@ function backToMainMenu() {
     bird.reset();       
     pipes.reset();
     coins.reset();
+    backgroundLayer.x = 0;
     boss.reset();
     bullets.reset();
     currents.reset();
@@ -305,9 +307,9 @@ nextLevelBtn.addEventListener('click', () => {
 // --- CAMPAIGN PROGRESS LOGIKA ---
 let defaultProgress = {
     1: { unlocked: true,  coins: [false, false, false] }, 
-    2: { unlocked: false, coins: [false, false, false] },
-    3: { unlocked: false, coins: [false, false, false] },
-    4: { unlocked: false, coins: [false, false, false] },
+    2: { unlocked: true, coins: [false, false, false] },
+    3: { unlocked: true, coins: [false, false, false] },
+    4: { unlocked: true, coins: [false, false, false] },
     5: { unlocked: false, coins: [false, false, false] },
     6: { unlocked: false, coins: [false, false, false] },
     7: { unlocked: false, coins: [false, false, false] },
@@ -451,9 +453,8 @@ function tryPlayMusic() {
 tryPlayMusic();
 
 // --- SCROLLING OBJEKTI ---
-const scaledBgWidth = Math.ceil((1920 / 1085) * 512); 
-const scaledLvl1BgWidth = Math.ceil((576 / 324) * 512); 
-const scaledLvl4BgWidth = Math.ceil((14080 / 7680) * 512); 
+const scaledBgWidth = Math.round((1920 / 1085) * 512); 
+const scaledLvl1BgWidth = Math.round((576 / 324) * 512); 
 
 const backgroundLayer = {
     x: 0,
@@ -464,20 +465,28 @@ const backgroundLayer = {
         let w = scaledBgWidth;
         
         if (gameMode === 'CAMPAIGN') {
-            if (currentLevel === 1) {
-                imgToDraw = lvl1BgImg; w = scaledLvl1BgWidth;
-            } else if (currentLevel === 2) {
-                imgToDraw = lvl2BgImg; w = scaledLvl1BgWidth;
-            } else if (currentLevel === 3) {
-                imgToDraw = lvl3BgImg; w = scaledLvl1BgWidth;
-            } else if (currentLevel === 4) {
-                imgToDraw = lvl4BgImg; w = scaledLvl4BgWidth;
+            if (currentLevel >= 1 && currentLevel <= 4) {
+                w = scaledLvl1BgWidth;
+                if (currentLevel === 1) imgToDraw = lvl1BgImg;
+                else if (currentLevel === 2) imgToDraw = lvl2BgImg;
+                else if (currentLevel === 3) imgToDraw = lvl3BgImg;
+                else if (currentLevel === 4) imgToDraw = lvl4BgImg;
             }
         }
 
         let drawX = Math.floor(this.x);
-        ctx.drawImage(imgToDraw, drawX, this.y, w, 512);
-        ctx.drawImage(imgToDraw, drawX + w - 1, this.y, w, 512);
+        let sW = imgToDraw.naturalWidth;
+        let sH = imgToDraw.naturalHeight;
+        
+        if (sW > 2 && sH > 0) {
+            ctx.drawImage(imgToDraw, 1, 0, sW - 2, sH, drawX, this.y, w, 512);
+            ctx.drawImage(imgToDraw, 1, 0, sW - 2, sH, drawX + w - 1, this.y, w, 512);
+            ctx.drawImage(imgToDraw, 1, 0, sW - 2, sH, drawX + w * 2 - 2, this.y, w, 512);
+        } else {
+            ctx.drawImage(imgToDraw, drawX, this.y, w, 512);
+            ctx.drawImage(imgToDraw, drawX + w - 1, this.y, w, 512);
+            ctx.drawImage(imgToDraw, drawX + w * 2 - 2, this.y, w, 512);
+        }
     },
     update: function() {
         if (gameState === 'PLAYING' || gameState === 'MENU' || gameState === 'READY' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
@@ -485,9 +494,8 @@ const backgroundLayer = {
             this.x -= currentDx;
             
             let w = scaledBgWidth;
-            if (gameMode === 'CAMPAIGN') {
-                if (currentLevel >= 1 && currentLevel <= 3) w = scaledLvl1BgWidth;
-                else if (currentLevel === 4) w = scaledLvl4BgWidth;
+            if (gameMode === 'CAMPAIGN' && currentLevel >= 1 && currentLevel <= 4) {
+                w = scaledLvl1BgWidth;
             }
 
             if (this.x <= -w) {
@@ -507,15 +515,24 @@ const floorLayer = {
         if (gameMode === 'CAMPAIGN' && currentLevel === 3) return;
 
         let imgToDraw = floorImg;
-        let w = scaledBgWidth;
 
         if (gameMode === 'CAMPAIGN' && currentLevel >= 4 && currentLevel <= 6) {
-            imgToDraw = floor2Img;
+            imgToDraw = (floor2Img.complete && floor2Img.naturalWidth !== 0) ? floor2Img : floorImg;
         }
 
         let drawX = Math.floor(this.x);
-        ctx.drawImage(imgToDraw, drawX, this.y, w, 512);
-        ctx.drawImage(imgToDraw, drawX + w - 1, this.y, w, 512);
+        let sW = imgToDraw.naturalWidth;
+        let sH = imgToDraw.naturalHeight;
+
+        if (sW > 2 && sH > 0) {
+            ctx.drawImage(imgToDraw, 1, 0, sW - 2, sH, drawX, this.y, this.width, 512);
+            ctx.drawImage(imgToDraw, 1, 0, sW - 2, sH, drawX + this.width - 1, this.y, this.width, 512);
+            ctx.drawImage(imgToDraw, 1, 0, sW - 2, sH, drawX + this.width * 2 - 2, this.y, this.width, 512);
+        } else {
+            ctx.drawImage(imgToDraw, drawX, this.y, this.width, 512);
+            ctx.drawImage(imgToDraw, drawX + this.width - 1, this.y, this.width, 512);
+            ctx.drawImage(imgToDraw, drawX + this.width * 2 - 2, this.y, this.width, 512);
+        }
     },
     update: function() {
         if (gameState === 'PLAYING' || gameState === 'MENU' || gameState === 'READY' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
@@ -579,7 +596,7 @@ const bird = {
             this.y = 150 + Math.sin(Date.now() / 200) * 5;
         } 
         else if (gameState === 'BOSS_OUTRO') {
-            this.y += Math.sin(frames * 0.1) * 1.5; // Nežno lebdenje ob zmagi
+            this.y += Math.sin(frames * 0.1) * 1.5; 
         }
         else if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
             this.velocity += this.gravity;
@@ -696,7 +713,7 @@ const boss = {
     windTimer: 0,
     windActive: false,
     shootTimer: 0,
-    rotation: 0, // DODANO: Za animacijo padanja ob porazu
+    rotation: 0, 
     
     draw: function() {
         if (!this.active || (gameState !== 'PLAYING' && gameState !== 'BOSS_INTRO' && gameState !== 'BOSS_OUTRO')) return;
@@ -723,7 +740,7 @@ const boss = {
         if (gameMode !== 'CAMPAIGN' || currentLevel !== 3) return;
         
         if (gameState === 'BOSS_OUTRO') {
-            this.y += 6; // Boss nemočno pade navzdol
+            this.y += 6; 
             this.x += 1;
             return;
         }
@@ -922,10 +939,18 @@ const pipes = {
     gap: 120, 
     
     draw: function() {
-        let drawImg = pipeImg;
+        let drawImgTop = pipeImg;
+        let drawImgBottom = pipeImg;
+
         if (gameMode === 'CAMPAIGN' && currentLevel >= 4 && currentLevel <= 6) {
-            drawImg = pipe2Img; 
+            drawImgTop = (pipe2Img.complete && pipe2Img.naturalWidth !== 0) ? pipe2Img : pipeImg; 
+            drawImgBottom = (pipe2Img.complete && pipe2Img.naturalWidth !== 0) ? pipe2Img : pipeImg;
         }
+
+        // Calculate proportional height based on actual image dimensions
+        // Formula: original_height * (target_width / original_width)
+        let topPipeHeight = drawImgTop.naturalWidth > 0 ? drawImgTop.naturalHeight * (this.width / drawImgTop.naturalWidth) : 320;
+        let bottomPipeHeight = drawImgBottom.naturalWidth > 0 ? drawImgBottom.naturalHeight * (this.width / drawImgBottom.naturalWidth) : 320;
 
         for (let i = 0; i < this.items.length; i++) {
             let p = this.items[i];
@@ -938,10 +963,10 @@ const pipes = {
             ctx.save();
             ctx.translate(p.x, currentY); 
             ctx.scale(1, -1); 
-            ctx.drawImage(drawImg, 0, 0, this.width, 512);
+            ctx.drawImage(drawImgTop, 0, 0, this.width, topPipeHeight);
             ctx.restore();
 
-            ctx.drawImage(drawImg, p.x, currentY + this.gap, this.width, 512);
+            ctx.drawImage(drawImgBottom, p.x, currentY + this.gap, this.width, bottomPipeHeight);
         }
     },
     update: function() {
@@ -1065,7 +1090,6 @@ const pipes = {
 };
 
 function levelComplete() {
-    // Spremenjen pogoj, da upošteva tudi novo stanje
     if (gameState === 'GAMEOVER' || gameState === 'VICTORY' || gameState === 'BOSS_OUTRO') return; 
 
     for (let i = 0; i < 3; i++) {
@@ -1095,11 +1119,9 @@ function levelComplete() {
     underwaterMusic.currentTime = 0;
 
     if (gameMode === 'CAMPAIGN' && currentLevel === 3) {
-        // --- NOVO: BOSS OUTRO ---
         gameState = 'BOSS_OUTRO';
         bossOutroUI.style.display = 'flex';
         
-        // Zvok udarca ob porazu bossa
         hitSound.currentTime = 0;
         hitSound.play().catch(e => {});
         
@@ -1108,7 +1130,6 @@ function levelComplete() {
             triggerVictoryFade();
         }, 3500); 
     } else {
-        // Normalni nivoji - takoj prehod
         gameState = 'VICTORY';
         setTimeout(() => {
             triggerVictoryFade();
@@ -1116,7 +1137,6 @@ function levelComplete() {
     }
 }
 
-// Ločena funkcija za vizualni fade v "Level Complete" meni
 function triggerVictoryFade() {
     gameState = 'VICTORY';
     let fadeInterval = setInterval(() => {
@@ -1414,11 +1434,16 @@ for (let i = 1; i <= 3; i++) {
 }
 
 let assetsLoaded = 0;
-const totalAssets = 13; 
+const imagesToLoad = [
+    birdImg, pipeImg, pipe2Img, pipe3Img, floorImg, floor2Img,
+    backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg,
+    birdBossImg, bulletImg
+];
+const totalAssets = imagesToLoad.length; 
 
 function checkAssets() {
     assetsLoaded++;
-    if (assetsLoaded >= totalAssets) {
+    if (assetsLoaded === totalAssets) {
         requestAnimationFrame(function(time) {
             then = time;
             draw(time);
@@ -1426,16 +1451,14 @@ function checkAssets() {
     }
 }
 
-if (birdImg.complete) checkAssets(); else birdImg.onload = checkAssets;
-if (pipeImg.complete) checkAssets(); else pipeImg.onload = checkAssets;
-if (pipe2Img.complete) checkAssets(); else pipe2Img.onload = checkAssets;
-if (floorImg.complete) checkAssets(); else floorImg.onload = checkAssets;
-if (floor2Img.complete) checkAssets(); else floor2Img.onload = checkAssets;
-if (backgroundImg.complete) checkAssets(); else backgroundImg.onload = checkAssets;
-if (coinImg.complete) checkAssets(); else coinImg.onload = checkAssets;
-if (lvl1BgImg.complete) checkAssets(); else lvl1BgImg.onload = checkAssets;
-if (lvl2BgImg.complete) checkAssets(); else lvl2BgImg.onload = checkAssets;
-if (lvl3BgImg.complete) checkAssets(); else lvl3BgImg.onload = checkAssets;
-if (lvl4BgImg.complete) checkAssets(); else lvl4BgImg.onload = checkAssets;
-if (birdBossImg.complete) checkAssets(); else birdBossImg.onload = checkAssets;
-if (bulletImg.complete) checkAssets(); else bulletImg.onload = checkAssets;
+imagesToLoad.forEach(img => {
+    if (img.complete && img.naturalWidth !== 0) {
+        checkAssets();
+    } else {
+        img.onload = checkAssets;
+        img.onerror = () => {
+            console.error("Napaka pri nalaganju slike: ", img.src);
+            checkAssets(); 
+        };
+    }
+});
