@@ -1100,12 +1100,11 @@ const horizontalBubbles = {
     }
 };
 
-// --- LEVEL 7 FIREBALLS MECHANIC ---
+// --- FIREBALLS MECHANIC (Levels 7 & 9) ---
 const fireballs = {
     items: [],
     draw: function() {
-        // Restricted specifically to level 7 now
-        if (gameMode !== 'CAMPAIGN' || currentLevel !== 7) return;
+        if (gameMode !== 'CAMPAIGN' || (currentLevel !== 7 && currentLevel !== 9)) return;
         for (let b of this.items) {
             ctx.beginPath();
             ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
@@ -1124,9 +1123,11 @@ const fireballs = {
             return;
         }
         
-        if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel !== 7) return;
+        if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || (currentLevel !== 7 && currentLevel !== 9)) return;
 
-        if (Math.random() < 0.035) {
+        let spawnChance = (currentLevel === 9) ? 0.012 : 0.035;
+
+        if (Math.random() < spawnChance) {
             let spawnX = bird.x + 120 + Math.random() * (canvas.width - bird.x - 50);
             let safeToSpawn = true;
             
@@ -1578,8 +1579,8 @@ const boss3 = {
     active: false,
     x: 0,
     y: 0,
-    width: 140, // Reduced down from 200
-    height: 76, // Reduced proportionately
+    width: 140, 
+    height: 76,
     state: 'IDLE',
     stateTimer: 0,
     attackCount: 0,
@@ -1588,11 +1589,11 @@ const boss3 = {
     barragePipesToSpawn: 0,
     barrageTimer: 0,
     targetY: 0,
-    laserY: 0, 
+    laserY: 0,
 
     draw: function() {
         if (!this.active || (gameState !== 'PLAYING' && gameState !== 'BOSS_INTRO' && gameState !== 'BOSS_OUTRO')) return;
-        
+
         ctx.save();
         ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
 
@@ -1622,14 +1623,23 @@ const boss3 = {
         ctx.restore();
 
         // Draw Death Laser
-        if (this.state === 'PREPARE_LASER' && this.stateTimer >= 30) {
-            ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
-            ctx.fillRect(0, this.laserY - 1, canvas.width, 2);
-        } else if (this.state === 'FIRING_LASER') {
+        if (this.state === 'PREPARE_LASER' && this.stateTimer >= 40) {
+            ctx.save();
+            ctx.globalAlpha = (Math.floor(frames / 5) % 2 === 0) ? 0.8 : 0.3; // Blink effect
             ctx.fillStyle = '#ff4d00';
-            ctx.fillRect(0, this.laserY - 15, canvas.width, 30);
+            // Start from left screen edge up to the dragon's mouth
+            ctx.fillRect(0, this.laserY - 2, this.x + 30, 4);
+            ctx.restore();
+        } else if (this.state === 'FIRING_LASER') {
+            let pulse = Math.sin(frames * 0.5) * 5;
+            ctx.save();
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#ff4d00";
+            ctx.fillStyle = '#ff4d00';
+            ctx.fillRect(0, this.laserY - 15 - pulse/2, this.x + 30, 30 + pulse);
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, this.laserY - 5, canvas.width, 10);
+            ctx.fillRect(0, this.laserY - 5 - pulse/4, this.x + 30, 10 + pulse/2);
+            ctx.restore();
         }
     },
 
@@ -1656,10 +1666,19 @@ const boss3 = {
 
             if (this.state === 'IDLE') {
                 this.x = canvas.width - this.width + 20;
-                this.y = canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80;
+
+                // Smooth tracking and floating
+                let baseTargetY = bird.y - this.height / 2;
+                let hitGroundY = getHitGroundY();
+                if (baseTargetY < 40) baseTargetY = 40;
+                if (baseTargetY > hitGroundY - this.height - 40) baseTargetY = hitGroundY - this.height - 40;
+
+                this.y += (baseTargetY - this.y) * 0.03;
+                this.y += Math.sin(frames * 0.05) * 1.5; // Hovering naturalness
+
                 this.stateTimer++;
 
-                if (this.stateTimer > 100) {
+                if (this.stateTimer > 90) { // Snappier transitions
                     this.stateTimer = 0;
                     this.attackCount++;
 
@@ -1678,13 +1697,13 @@ const boss3 = {
             } else if (this.state === 'SHOOTING') {
                 this.stateTimer++;
                 this.isShooting = true;
-                this.y = canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80;
+                this.y += Math.sin(frames * 0.05) * 1.5; // keep hovering
 
                 if (this.stateTimer === 15) {
                     boss3Projectiles.items.push({
                         x: this.x - 10,
                         y: this.y + this.height / 2 + 10,
-                        vx: -8, // Fast fireball
+                        vx: -9, // Faster fireball
                         vy: 0,
                         width: 32,
                         height: 32,
@@ -1693,7 +1712,7 @@ const boss3 = {
                     screenShake = 6; 
                 }
 
-                if (this.stateTimer > 60) {
+                if (this.stateTimer > 50) {
                     this.state = 'IDLE';
                     this.isShooting = false;
                     this.stateTimer = 0;
@@ -1701,18 +1720,18 @@ const boss3 = {
             } else if (this.state === 'PREPARE_LASER') {
                 this.stateTimer++;
                 
-                // For the first 30 frames, smoothly track player vertical position
-                if (this.stateTimer < 30) {
+                // Track player vertically during the first half of the windup
+                if (this.stateTimer < 40) {
                     let targetBossY = bird.y + bird.height / 2 - this.height / 2;
-                    this.y += (targetBossY - this.y) * 0.15; // smooth fast tracking
+                    this.y += (targetBossY - this.y) * 0.1; // Smooth fast tracking
                 }
                 
                 // Lock laser onto the boss's mouth 
-                if (this.stateTimer === 30) {
+                if (this.stateTimer === 40) {
                     this.laserY = this.y + this.height / 2 + 10; 
                 }
 
-                if (this.stateTimer > 90) { // 60 frames (1 full second) of locked warning 
+                if (this.stateTimer > 90) { // Warning ends, FIRE 
                     this.state = 'FIRING_LASER';
                     this.stateTimer = 0;
                     screenShake = 12;
@@ -1722,13 +1741,14 @@ const boss3 = {
             } else if (this.state === 'FIRING_LASER') {
                 this.stateTimer++;
                 this.isShooting = true;
-                screenShake = 6;
+                screenShake = 4;
                 
                 const bh = bird.getHitbox();
                 let laserTop = this.laserY - 15;
                 let laserBottom = this.laserY + 15;
                 
-                if (bh.x < canvas.width && bh.x + bh.w > 0 &&
+                // Fixed logic so the laser bounding box stops at the dragon's mouth
+                if (bh.x < this.x + 30 && bh.x + bh.w > 0 &&
                     bh.y < laserBottom && bh.h + bh.y > laserTop) {
                     gameOver();
                 }
@@ -1740,8 +1760,9 @@ const boss3 = {
                 }
             } else if (this.state === 'PREPARE_DASH') {
                 this.stateTimer++;
-                if (this.y + this.height/2 < bird.y + bird.height/2) this.y += 1.5;
-                if (this.y + this.height/2 > bird.y + bird.height/2) this.y -= 1.5;
+                // Precisely track player position
+                let targetY = bird.y + bird.height/2 - this.height/2;
+                this.y += (targetY - this.y) * 0.08;
 
                 if (this.stateTimer > 70) {
                     this.state = 'DASHING';
@@ -1749,10 +1770,10 @@ const boss3 = {
                     screenShake = 12; 
                 }
             } else if (this.state === 'DASHING') {
-                this.x -= 20; 
+                this.x -= 22; // Snappy fast dash
                 const bh = bird.getHitbox();
-                let paddingX = 40;
-                let paddingY = 30;
+                let paddingX = 30;
+                let paddingY = 25;
 
                 if (bh.x < this.x + this.width - paddingX && bh.x + bh.w > this.x + paddingX &&
                     bh.y < this.y + this.height - paddingY && bh.h + bh.y > this.y + paddingY) {
@@ -1765,7 +1786,8 @@ const boss3 = {
                 }
             } else if (this.state === 'RETURNING') {
                 this.x -= 4;
-                this.y = canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80;
+                // Move back to idle vertical center position
+                this.y += (canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80 - this.y) * 0.05;
                 if (this.x <= canvas.width - this.width + 20) {
                     this.x = canvas.width - this.width + 20;
                     this.state = 'IDLE';
@@ -1775,20 +1797,20 @@ const boss3 = {
                 if (this.x > canvas.width + 50) {
                     this.state = 'BARRAGE';
                     this.stateTimer = 0;
-                    this.barragePipesToSpawn = 6; 
+                    this.barragePipesToSpawn = 8; 
                     this.barrageTimer = 0;
                 }
             } else if (this.state === 'BARRAGE') {
                 this.barrageTimer++;
                 
-                // Spawn pipes much slower than before to allow maneuvering 
-                if (this.barrageTimer > 90 && this.barragePipesToSpawn > 0) {
+                // Structured wave pattern of pipes instead of random uncoordinated gaps 
+                if (this.barrageTimer > 55 && this.barragePipesToSpawn > 0) {
                     this.barrageTimer = 0;
+                    this.spawnBarragePipe(8 - this.barragePipesToSpawn, 8);
                     this.barragePipesToSpawn--;
-                    this.spawnBarragePipe();
                 }
 
-                if (this.barragePipesToSpawn <= 0 && this.barrageTimer > 180) { 
+                if (this.barragePipesToSpawn <= 0 && this.barrageTimer > 160) { 
                     this.state = 'RETURNING';
                 }
             }
@@ -1797,37 +1819,33 @@ const boss3 = {
         }
     },
 
-    spawnBarragePipe: function() {
+    spawnBarragePipe: function(index, total) {
         let hitGroundY = getHitGroundY(); 
-        let minPipeHeight = 50;
-        let bobAmp = Math.random() > 0.3 ? 30 : 0; 
-        let bobSpeed = 0.04;
+        let barrageGap = 180; // Fixed, fair gap 
         
-        // Increase the opening size explicitly for this barrage to make it doable
-        let barrageGap = 150; 
-        
-        let minY = minPipeHeight + bobAmp;
-        let maxY = hitGroundY - barrageGap - minPipeHeight - bobAmp;
-        let randomY = Math.random() * (maxY - minY) + minY;
+        // Sine wave pattern logic for polished visual progression
+        let progress = index / total; 
+        let wave = Math.sin(progress * Math.PI * 2); 
+        let amplitude = 110;
+        let centerY = (hitGroundY / 2) + (wave * amplitude);
 
-        let pipeVariants = ['normal', 'normal', 'top_only', 'bottom_only'];
-        let pipeType = pipeVariants[Math.floor(Math.random() * pipeVariants.length)];
+        let randomY = centerY - barrageGap / 2;
 
         pipes.items.push({
             x: canvas.width,
             baseY: randomY,
-            gap: barrageGap, // Inject custom wide gap
-            bobPhase: Math.random() * Math.PI * 2,
-            bobAmp: bobAmp,
-            bobSpeed: bobSpeed,
+            gap: barrageGap, 
+            bobPhase: 0,
+            bobAmp: 0, // Disabled bobbing to make them structured and consistent
+            bobSpeed: 0,
             passed: false,
             isBiting: false,
             biteSpeed: 0,
             bitePhase: 0,
             moveSpeed: 0,
             movePhase: 0,
-            type: pipeType,
-            hasFlame: false,
+            type: 'normal',
+            hasFlame: false, // Make strictly an obstacle course with no random flame spikes
             flameState: 'idle',
             flameTimer: 0,
             customTexture: 3 
