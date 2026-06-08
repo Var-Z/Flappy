@@ -82,6 +82,9 @@ lvl3BgImg.src = 'assets/backgrounds/level3.png';
 const lvl4BgImg = new Image();
 lvl4BgImg.src = 'assets/backgrounds/level4.png'; 
 
+const lvl5BgImg = new Image();
+lvl5BgImg.src = 'assets/backgrounds/level5.png'; 
+
 const birdBossImg = new Image();
 birdBossImg.src = 'assets/textures/birdboss.png';
 
@@ -471,12 +474,17 @@ const backgroundLayer = {
         let w = scaledBgWidth;
         
         if (gameMode === 'CAMPAIGN') {
-            if (currentLevel >= 1 && currentLevel <= 4) {
-                w = scaledLvl1BgWidth;
-                if (currentLevel === 1) imgToDraw = lvl1BgImg;
-                else if (currentLevel === 2) imgToDraw = lvl2BgImg;
-                else if (currentLevel === 3) imgToDraw = lvl3BgImg;
-                else if (currentLevel === 4) imgToDraw = lvl4BgImg;
+            if (currentLevel >= 1 && currentLevel <= 5) {
+                if (currentLevel >= 1 && currentLevel <= 4) {
+                    w = scaledLvl1BgWidth;
+                    if (currentLevel === 1) imgToDraw = lvl1BgImg;
+                    else if (currentLevel === 2) imgToDraw = lvl2BgImg;
+                    else if (currentLevel === 3) imgToDraw = lvl3BgImg;
+                    else if (currentLevel === 4) imgToDraw = lvl4BgImg;
+                } else if (currentLevel === 5) {
+                    w = scaledBgWidth; 
+                    imgToDraw = lvl5BgImg;
+                }
             }
         }
 
@@ -584,15 +592,20 @@ const underwaterEffects = {
         ctx.save();
         ctx.globalCompositeOperation = 'overlay'; 
         
-        // Single swaying ray logic
         let pulse = Math.sin(frames * 0.01) * 0.5 + 0.5; 
         let alpha = 0.05 + pulse * 0.1; 
         
         let startX = 50 + Math.sin(frames * 0.005) * 50; 
         
         let grad = ctx.createLinearGradient(startX, 0, startX + 150, canvas.height);
-        grad.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
-        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        
+        if (currentLevel === 5) {
+            grad.addColorStop(0, `rgba(100, 255, 150, ${alpha * 0.8})`);
+            grad.addColorStop(1, 'rgba(100, 255, 150, 0)');
+        } else {
+            grad.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        }
 
         ctx.fillStyle = grad;
         ctx.beginPath();
@@ -1090,6 +1103,9 @@ const coins = {
                 
                 if (gameMode === 'CAMPAIGN' && currentLevel === 2 && !c.isBossCoin) {
                     actualY += Math.sin(frames * 0.05 + c.pipeBobPhase) * 45;
+                } else if (c.isBiting && !c.isBossCoin) {
+                    actualY += Math.sin(frames * c.moveSpeed + c.movePhase) * 35;
+                    actualY += Math.sin(frames * 0.1 + c.coinBobPhase) * 4;
                 } else {
                     actualY += Math.sin(frames * 0.1 + c.coinBobPhase) * 8;
                 }
@@ -1142,6 +1158,9 @@ const coins = {
                 
                 if (gameMode === 'CAMPAIGN' && currentLevel === 2 && !c.isBossCoin) {
                     actualY += Math.sin(frames * 0.05 + c.pipeBobPhase) * 45;
+                } else if (c.isBiting && !c.isBossCoin) {
+                    actualY += Math.sin(frames * c.moveSpeed + c.movePhase) * 35;
+                    actualY += Math.sin(frames * 0.1 + c.coinBobPhase) * 4;
                 } else {
                     actualY += Math.sin(frames * 0.1 + c.coinBobPhase) * 8;
                 }
@@ -1198,13 +1217,24 @@ const pipes = {
                 currentY += Math.sin(frames * 0.05 + p.bobPhase) * 45;
             }
 
+            let topPipeY = currentY;
+            let bottomPipeY = currentY + this.gap;
+
+            if (p.isBiting) {
+                let gapMod = Math.sin(frames * p.biteSpeed + p.bitePhase) * 20; 
+                let shiftMod = Math.sin(frames * p.moveSpeed + p.movePhase) * 35;
+                
+                topPipeY = currentY + shiftMod - gapMod;
+                bottomPipeY = currentY + this.gap + shiftMod + gapMod;
+            }
+
             ctx.save();
-            ctx.translate(p.x, currentY); 
+            ctx.translate(p.x, topPipeY); 
             ctx.scale(1, -1); 
             ctx.drawImage(drawImgTop, 0, 0, this.width, topPipeHeight);
             ctx.restore();
 
-            ctx.drawImage(drawImgBottom, p.x, currentY + this.gap, this.width, bottomPipeHeight);
+            ctx.drawImage(drawImgBottom, p.x, bottomPipeY, this.width, bottomPipeHeight);
         }
     },
     update: function() {
@@ -1232,17 +1262,30 @@ const pipes = {
             let minPipeHeight = 50; 
             
             let amplitude = (gameMode === 'CAMPAIGN' && currentLevel === 2) ? 45 : 0;
-            let minY = minPipeHeight + amplitude;
-            let maxY = hitGroundY - this.gap - minPipeHeight - amplitude; 
+            let isBiting = (gameMode === 'CAMPAIGN' && currentLevel === 5);
+            let bitePadding = isBiting ? 55 : 0; 
+
+            let minY = minPipeHeight + amplitude + bitePadding;
+            let maxY = hitGroundY - this.gap - minPipeHeight - amplitude - bitePadding; 
             
             let randomY = Math.random() * (maxY - minY) + minY;
             let pBobPhase = Math.random() * Math.PI * 2; 
+
+            let biteSpeed = isBiting ? (Math.random() * 0.03 + 0.02) : 0;
+            let bitePhase = isBiting ? (Math.random() * Math.PI * 2) : 0;
+            let moveSpeed = isBiting ? (Math.random() * 0.02 + 0.015) : 0;
+            let movePhase = isBiting ? (Math.random() * Math.PI * 2) : 0;
             
             this.items.push({
                 x: canvas.width,
                 baseY: randomY, 
                 bobPhase: pBobPhase,
-                passed: false 
+                passed: false,
+                isBiting: isBiting,
+                biteSpeed: biteSpeed,
+                bitePhase: bitePhase,
+                moveSpeed: moveSpeed,
+                movePhase: movePhase
             });
 
             if (gameMode === 'CAMPAIGN' && currentLevel === 4) {
@@ -1274,12 +1317,15 @@ const pipes = {
                 if (distanceTraveled >= triggerDistances[coinsSpawned]) {
                     coins.items.push({
                         x: canvas.width + this.width / 2 - coins.size / 2, 
-                        baseY: randomY + this.gap / 2 - coins.size / 2,
+                        baseY: randomY + this.gap / 2 - coins.size / 2, 
                         pipeBobPhase: pBobPhase, 
                         coinBobPhase: Math.random() * Math.PI * 2, 
                         collected: false,
                         isBossCoin: false,
-                        id: coinsSpawned 
+                        id: coinsSpawned,
+                        isBiting: isBiting,
+                        moveSpeed: moveSpeed,
+                        movePhase: movePhase
                     });
                     coinsSpawned++;
                 }
@@ -1295,12 +1341,21 @@ const pipes = {
                 currentY += Math.sin(frames * 0.05 + p.bobPhase) * 45;
             }
 
+            let topPipeY = currentY;
+            let bottomPipeY = currentY + this.gap;
+
+            if (p.isBiting) {
+                let gapMod = Math.sin(frames * p.biteSpeed + p.bitePhase) * 20;
+                let shiftMod = Math.sin(frames * p.moveSpeed + p.movePhase) * 35;
+                
+                topPipeY = currentY + shiftMod - gapMod;
+                bottomPipeY = currentY + this.gap + shiftMod + gapMod;
+            }
+
             const bh = bird.getHitbox(); 
-            const top_pipe_tip = currentY;
-            const bottom_pipe_tip = currentY + this.gap;
 
             if (bh.x + bh.w > p.x && bh.x < p.x + this.width) {
-                if (bh.y < top_pipe_tip || bh.y + bh.h > bottom_pipe_tip) {
+                if (bh.y < topPipeY || bh.y + bh.h > bottomPipeY) {
                     gameOver();
                 }
             }
@@ -1692,7 +1747,7 @@ for (let i = 1; i <= 3; i++) {
 let assetsLoaded = 0;
 const imagesToLoad = [
     birdImg, pipeImg, pipe2Img, pipe3Img, floorImg, floor2Img,
-    backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg,
+    backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg, lvl5BgImg,
     birdBossImg, bulletImg, seaweedImg 
 ];
 const totalAssets = imagesToLoad.length; 
