@@ -67,6 +67,9 @@ floorImg.src = 'assets/backgrounds/floor.png';
 const floor2Img = new Image();
 floor2Img.src = 'assets/backgrounds/floor2.png'; 
 
+const floor3Img = new Image();
+floor3Img.src = 'assets/backgrounds/floor3.png';
+
 const backgroundImg = new Image();
 backgroundImg.src = 'assets/backgrounds/background.png';
 
@@ -91,6 +94,9 @@ lvl5BgImg.src = 'assets/backgrounds/level5.png';
 const lvl6BgImg = new Image();
 lvl6BgImg.src = 'assets/backgrounds/level6.png'; 
 
+const lvl7BgImg = new Image();
+lvl7BgImg.src = 'assets/backgrounds/level7.png';
+
 const birdBossImg = new Image();
 birdBossImg.src = 'assets/textures/birdboss.png';
 
@@ -105,6 +111,9 @@ jellyfishImg.src = 'assets/textures/jellyfish.png';
 
 const bulletImg = new Image();
 bulletImg.src = 'assets/textures/bullet.png';
+
+const flameImg = new Image();
+flameImg.src = 'assets/textures/flame.png';
 
 // Nalaganje vizualnih efektov
 const seaweedImg = new Image();
@@ -129,6 +138,9 @@ surfaceMusic.loop = true;
 
 const underwaterMusic = new Audio('assets/sounds/underwater.wav');
 underwaterMusic.loop = true;
+
+const lavaMusic = new Audio('assets/sounds/lava.wav');
+lavaMusic.loop = true;
 
 const boss1Music = new Audio('assets/sounds/boss1.wav');
 boss1Music.loop = true;
@@ -206,30 +218,42 @@ function updateVolumes() {
                 boss1Music.volume = 0;
                 boss2Music.volume = 0;
                 underwaterMusic.volume = 0;
+                lavaMusic.volume = 0;
             } else if (gameMode === 'CAMPAIGN') {
                 if (currentLevel >= 1 && currentLevel <= 2) {
                     surfaceMusic.volume = currentMusicVolume;
                     boss1Music.volume = 0;
                     boss2Music.volume = 0;
                     underwaterMusic.volume = 0;
+                    lavaMusic.volume = 0;
                     endlessMusic.volume = 0;
                 } else if (currentLevel === 3) {
                     boss1Music.volume = currentMusicVolume;
                     surfaceMusic.volume = 0;
                     boss2Music.volume = 0;
                     underwaterMusic.volume = 0;
+                    lavaMusic.volume = 0;
                     endlessMusic.volume = 0;
                 } else if (currentLevel === 4 || currentLevel === 5) {
                     underwaterMusic.volume = currentMusicVolume;
                     surfaceMusic.volume = 0;
                     boss1Music.volume = 0;
                     boss2Music.volume = 0;
+                    lavaMusic.volume = 0;
                     endlessMusic.volume = 0;
                 } else if (currentLevel === 6) {
                     boss2Music.volume = currentMusicVolume;
                     underwaterMusic.volume = 0;
                     surfaceMusic.volume = 0;
                     boss1Music.volume = 0;
+                    lavaMusic.volume = 0;
+                    endlessMusic.volume = 0;
+                } else if (currentLevel >= 7) {
+                    lavaMusic.volume = currentMusicVolume;
+                    surfaceMusic.volume = 0;
+                    boss1Music.volume = 0;
+                    boss2Music.volume = 0;
+                    underwaterMusic.volume = 0;
                     endlessMusic.volume = 0;
                 }
             }
@@ -239,6 +263,7 @@ function updateVolumes() {
             boss1Music.volume = 0;
             boss2Music.volume = 0;
             underwaterMusic.volume = 0;
+            lavaMusic.volume = 0;
         }
     }
 }
@@ -312,6 +337,7 @@ function backToMainMenu() {
     horizontalBubbles.reset();
     ambientBubbles.reset();
     seaweed.reset();
+    fireballs.reset();
     
     const menus = [campaignGameOverMenu, levelCompleteMenu, campaignMenu, bossIntroUI, bossOutroUI];
     menus.forEach(m => {
@@ -506,7 +532,7 @@ const backgroundLayer = {
         let w = scaledBgWidth;
         
         if (gameMode === 'CAMPAIGN') {
-            if (currentLevel >= 1 && currentLevel <= 6) {
+            if (currentLevel >= 1 && currentLevel <= 7) {
                 if (currentLevel >= 1 && currentLevel <= 4) {
                     w = scaledLvl1BgWidth;
                     if (currentLevel === 1) imgToDraw = lvl1BgImg;
@@ -519,6 +545,9 @@ const backgroundLayer = {
                 } else if (currentLevel === 6) {
                     w = scaledLvl1BgWidth; 
                     imgToDraw = lvl6BgImg;
+                } else if (currentLevel === 7) {
+                    w = scaledLvl1BgWidth; 
+                    imgToDraw = lvl7BgImg;
                 }
             }
         }
@@ -543,7 +572,7 @@ const backgroundLayer = {
             this.x -= currentDx;
             
             let w = scaledBgWidth;
-            if (gameMode === 'CAMPAIGN' && ((currentLevel >= 1 && currentLevel <= 4) || currentLevel === 6)) {
+            if (gameMode === 'CAMPAIGN' && ((currentLevel >= 1 && currentLevel <= 4) || currentLevel === 6 || currentLevel >= 7)) {
                 w = scaledLvl1BgWidth;
             }
 
@@ -565,8 +594,12 @@ const floorLayer = {
 
         let imgToDraw = floorImg;
 
-        if (gameMode === 'CAMPAIGN' && currentLevel >= 4 && currentLevel <= 6) {
-            imgToDraw = (floor2Img.complete && floor2Img.naturalWidth !== 0) ? floor2Img : floorImg;
+        if (gameMode === 'CAMPAIGN') {
+            if (currentLevel >= 4 && currentLevel <= 6) {
+                imgToDraw = (floor2Img.complete && floor2Img.naturalWidth !== 0) ? floor2Img : floorImg;
+            } else if (currentLevel >= 7) {
+                imgToDraw = (floor3Img.complete && floor3Img.naturalWidth !== 0) ? floor3Img : floorImg;
+            }
         }
 
         let drawX = Math.floor(this.x);
@@ -1085,6 +1118,65 @@ const horizontalBubbles = {
     }
 };
 
+// --- LEVEL 7 FIREBALLS MECHANIC ---
+const fireballs = {
+    items: [],
+    draw: function() {
+        if (gameMode !== 'CAMPAIGN' || currentLevel < 7) return;
+        for (let b of this.items) {
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff4d00'; 
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(b.x, b.y + b.radius*0.2, b.radius * 0.6, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffcc00'; 
+            ctx.fill();
+        }
+    },
+    update: function() {
+        if (gameState === 'BOSS_OUTRO') {
+            for (let b of this.items) b.x -= gameSpeed;
+            return;
+        }
+        if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel < 7) return;
+
+        if (Math.random() < 0.015) {
+            this.items.push({
+                x: canvas.width + Math.random() * 100,
+                y: getHitGroundY() + 20,
+                vx: -gameSpeed + (Math.random() * 2 - 1),
+                vy: -(6 + Math.random() * 3.5), 
+                radius: 12 + Math.random() * 6,
+                gravity: 0.18
+            });
+        }
+
+        for (let i = 0; i < this.items.length; i++) {
+            let b = this.items[i];
+            b.x += b.vx;
+            b.vy += b.gravity;
+            b.y += b.vy;
+
+            const bh = bird.getHitbox();
+            let distX = b.x - (bh.x + bh.w/2);
+            let distY = b.y - (bh.y + bh.h/2);
+            let distance = Math.sqrt(distX*distX + distY*distY);
+            
+            if (distance < b.radius + Math.min(bh.w, bh.h)/2 - 5) {
+                gameOver();
+            }
+
+            if (b.y > canvas.height + 50 || b.x < -50) {
+                this.items.splice(i, 1);
+                i--;
+            }
+        }
+    },
+    reset: function() { this.items = []; }
+};
+
 // --- BOSS OBJEKTI (LEVEL 3) ---
 const boss = {
     active: false,
@@ -1560,9 +1652,14 @@ const pipes = {
         let drawImgTop = pipeImg;
         let drawImgBottom = pipeImg;
 
-        if (gameMode === 'CAMPAIGN' && currentLevel >= 4 && currentLevel <= 6) {
-            drawImgTop = (pipe2Img.complete && pipe2Img.naturalWidth !== 0) ? pipe2Img : pipeImg; 
-            drawImgBottom = (pipe2Img.complete && pipe2Img.naturalWidth !== 0) ? pipe2Img : pipeImg;
+        if (gameMode === 'CAMPAIGN') {
+            if (currentLevel >= 4 && currentLevel <= 6) {
+                drawImgTop = (pipe2Img.complete && pipe2Img.naturalWidth !== 0) ? pipe2Img : pipeImg; 
+                drawImgBottom = (pipe2Img.complete && pipe2Img.naturalWidth !== 0) ? pipe2Img : pipeImg;
+            } else if (currentLevel >= 7) {
+                drawImgTop = (pipe3Img.complete && pipe3Img.naturalWidth !== 0) ? pipe3Img : pipeImg; 
+                drawImgBottom = (pipe3Img.complete && pipe3Img.naturalWidth !== 0) ? pipe3Img : pipeImg;
+            }
         }
 
         let topPipeHeight = drawImgTop.naturalWidth > 0 ? drawImgTop.naturalHeight * (this.width / drawImgTop.naturalWidth) : 320;
@@ -1587,13 +1684,51 @@ const pipes = {
                 bottomPipeY = currentY + this.gap + shiftMod + gapMod;
             }
 
-            ctx.save();
-            ctx.translate(p.x, topPipeY); 
-            ctx.scale(1, -1); 
-            ctx.drawImage(drawImgTop, 0, 0, this.width, topPipeHeight);
-            ctx.restore();
+            if (!p.type || p.type === 'normal' || p.type === 'top_only') {
+                ctx.save();
+                ctx.translate(p.x, topPipeY); 
+                ctx.scale(1, -1); 
+                ctx.drawImage(drawImgTop, 0, 0, this.width, topPipeHeight);
+                ctx.restore();
+            }
 
-            ctx.drawImage(drawImgBottom, p.x, bottomPipeY, this.width, bottomPipeHeight);
+            if (!p.type || p.type === 'normal' || p.type === 'bottom_only') {
+                ctx.drawImage(drawImgBottom, p.x, bottomPipeY, this.width, bottomPipeHeight);
+            }
+
+            // Draw Flame Mechanic for Level 7 Half-Pipes
+            if (p.hasFlame) {
+                let fx = p.x + 5;
+                let fw = this.width - 10;
+                let fy, fh;
+
+                if (p.type === 'top_only') {
+                    fy = topPipeY; 
+                    fh = getHitGroundY() - 140 - topPipeY; // Guarantees 140px safe zone
+                } else if (p.type === 'bottom_only') {
+                    fy = 140; 
+                    fh = bottomPipeY - 140;
+                }
+
+                if (p.flameState === 'warning') {
+                    let alpha = (Math.floor(frames / 10) % 2 === 0) ? 0.6 : 0.2;
+                    ctx.fillStyle = `rgba(255, 50, 0, ${alpha})`;
+                    ctx.fillRect(fx, fy, fw, fh);
+                    
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha + 0.3})`;
+                    ctx.textAlign = 'center';
+                    ctx.font = '20px "Press Start 2P"';
+                    ctx.fillText('!', fx + fw/2, fy + fh/2 + 10);
+                    ctx.textAlign = 'start';
+                } else if (p.flameState === 'firing') {
+                    if (flameImg.complete && flameImg.naturalWidth > 0) {
+                        ctx.drawImage(flameImg, fx, fy, fw, fh);
+                    } else {
+                        ctx.fillStyle = 'rgba(255, 50, 0, 0.9)';
+                        ctx.fillRect(fx, fy, fw, fh);
+                    }
+                }
+            }
         }
     },
     update: function() {
@@ -1613,8 +1748,10 @@ const pipes = {
             stopSpawning = true;
         }
 
+        let spawnThreshold = (gameMode === 'CAMPAIGN' && currentLevel >= 7) ? 350 : 220; 
         pipeSpawnTimer += gameSpeed; 
-        if (pipeSpawnTimer >= 220 && !stopSpawning) {
+        
+        if (pipeSpawnTimer >= spawnThreshold && !stopSpawning) {
             pipeSpawnTimer = 0; 
             
             let hitGroundY = getHitGroundY(); 
@@ -1634,6 +1771,20 @@ const pipes = {
             let bitePhase = isBiting ? (Math.random() * Math.PI * 2) : 0;
             let moveSpeed = isBiting ? (Math.random() * 0.02 + 0.015) : 0;
             let movePhase = isBiting ? (Math.random() * Math.PI * 2) : 0;
+
+            let pipeType = 'normal';
+            let hasFlame = false;
+            
+            if (gameMode === 'CAMPAIGN' && currentLevel >= 7) {
+                let r = Math.random();
+                if (r < 0.3) {
+                    pipeType = 'top_only';
+                    hasFlame = true;
+                } else if (r < 0.6) {
+                    pipeType = 'bottom_only';
+                    hasFlame = true;
+                }
+            }
             
             this.items.push({
                 x: canvas.width,
@@ -1644,7 +1795,11 @@ const pipes = {
                 biteSpeed: biteSpeed,
                 bitePhase: bitePhase,
                 moveSpeed: moveSpeed,
-                movePhase: movePhase
+                movePhase: movePhase,
+                type: pipeType,
+                hasFlame: hasFlame,
+                flameState: 'idle',
+                flameTimer: 0
             });
 
             if (gameMode === 'CAMPAIGN' && currentLevel === 4) {
@@ -1714,8 +1869,42 @@ const pipes = {
             const bh = bird.getHitbox(); 
 
             if (bh.x + bh.w > p.x && bh.x < p.x + this.width) {
-                if (bh.y < topPipeY || bh.y + bh.h > bottomPipeY) {
+                if (p.type === 'normal' && (bh.y < topPipeY || bh.y + bh.h > bottomPipeY)) {
                     gameOver();
+                } else if (p.type === 'top_only' && bh.y < topPipeY) {
+                    gameOver();
+                } else if (p.type === 'bottom_only' && bh.y + bh.h > bottomPipeY) {
+                    gameOver();
+                }
+            }
+
+            if (p.hasFlame) {
+                p.flameTimer++;
+                if (p.flameState === 'idle' && p.flameTimer > 45) {
+                    p.flameState = 'warning'; p.flameTimer = 0;
+                } else if (p.flameState === 'warning' && p.flameTimer > 60) {
+                    p.flameState = 'firing'; p.flameTimer = 0;
+                } else if (p.flameState === 'firing' && p.flameTimer > 90) {
+                    p.flameState = 'cooldown'; p.flameTimer = 0;
+                } else if (p.flameState === 'cooldown' && p.flameTimer > 45) {
+                    p.flameState = 'idle'; p.flameTimer = 0;
+                }
+
+                if (p.flameState === 'firing') {
+                    let fx = p.x + 10;
+                    let fw = this.width - 20;
+                    let fy, fh;
+                    if (p.type === 'top_only') {
+                        fy = topPipeY; 
+                        fh = getHitGroundY() - 140 - topPipeY;
+                    } else if (p.type === 'bottom_only') {
+                        fy = 140;
+                        fh = bottomPipeY - 140;
+                    }
+                    if (bh.x < fx + fw && bh.x + bh.w > fx &&
+                        bh.y < fy + fh && bh.y + bh.h > fy) {
+                        gameOver();
+                    }
                 }
             }
 
@@ -1769,6 +1958,8 @@ function levelComplete() {
     boss2Music.currentTime = 0;
     underwaterMusic.pause();
     underwaterMusic.currentTime = 0;
+    lavaMusic.pause();
+    lavaMusic.currentTime = 0;
 
     if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6)) {
         gameState = 'BOSS_OUTRO';
@@ -1808,6 +1999,7 @@ function triggerVictoryFade() {
             horizontalBubbles.reset();
             ambientBubbles.reset();
             seaweed.reset();
+            fireballs.reset();
             
             campaignUI.style.display = 'none';
             
@@ -1852,6 +2044,8 @@ function gameOver() {
     boss2Music.currentTime = 0;
     underwaterMusic.pause();
     underwaterMusic.currentTime = 0;
+    lavaMusic.pause();
+    lavaMusic.currentTime = 0;
     
     if (gameMode === 'ENDLESS') {
         if (score > bestScore) {
@@ -1881,6 +2075,7 @@ function gameOver() {
                 horizontalBubbles.reset();
                 ambientBubbles.reset();
                 seaweed.reset();
+                fireballs.reset();
                 gameState = 'MENU';
                 
                 campaignUI.style.display = 'none';
@@ -1933,6 +2128,7 @@ function resetGame(mode, level = 0) {
     horizontalBubbles.reset();
     ambientBubbles.reset();
     seaweed.reset();
+    fireballs.reset();
     
     score = 0;
     frames = 0;
@@ -1997,6 +2193,9 @@ function resetGame(mode, level = 0) {
             } else if (currentLevel >= 4 && currentLevel <= 5) {
                 crossfadeMusic(bgMusic, underwaterMusic);
                 gameState = 'PLAYING';
+            } else if (currentLevel >= 7) {
+                crossfadeMusic(bgMusic, lavaMusic);
+                gameState = 'PLAYING';
             } else {
                 crossfadeMusic(bgMusic, surfaceMusic);
                 gameState = 'PLAYING';
@@ -2052,6 +2251,9 @@ function draw(now) {
         boss2.draw();
         boss2Projectiles.update();
         boss2Projectiles.draw();
+        
+        fireballs.update();
+        fireballs.draw();
 
         coins.update();
         coins.draw();
@@ -2133,9 +2335,9 @@ for (let i = 1; i <= 3; i++) {
 
 let assetsLoaded = 0;
 const imagesToLoad = [
-    birdImg, pipeImg, pipe2Img, pipe3Img, floorImg, floor2Img,
-    backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg, lvl5BgImg, lvl6BgImg,
-    birdBossImg, fishBossImg, waterImg, jellyfishImg, bulletImg, seaweedImg 
+    birdImg, pipeImg, pipe2Img, pipe3Img, floorImg, floor2Img, floor3Img,
+    backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg, lvl5BgImg, lvl6BgImg, lvl7BgImg,
+    birdBossImg, fishBossImg, waterImg, jellyfishImg, bulletImg, seaweedImg, flameImg 
 ];
 const totalAssets = imagesToLoad.length; 
 
