@@ -100,11 +100,23 @@ lvl7BgImg.src = 'assets/backgrounds/level7.png';
 const lvl8BgImg = new Image();
 lvl8BgImg.src = 'assets/backgrounds/level8.png';
 
+const lvl9BgImg = new Image();
+lvl9BgImg.src = 'assets/backgrounds/level9.png';
+
 const birdBossImg = new Image();
 birdBossImg.src = 'assets/textures/birdboss.png';
 
 const fishBossImg = new Image();
 fishBossImg.src = 'assets/textures/fishboss.png';
+
+const dragonBossImg = new Image();
+dragonBossImg.src = 'assets/textures/dragonboss.png';
+
+const dragonBoss2Img = new Image();
+dragonBoss2Img.src = 'assets/textures/dragonboss2.png';
+
+const flameImg = new Image();
+flameImg.src = 'assets/textures/flame.png';
 
 const waterImg = new Image();
 waterImg.src = 'assets/textures/water.png';
@@ -148,6 +160,9 @@ boss1Music.loop = true;
 const boss2Music = new Audio('assets/sounds/boss2.wav');
 boss2Music.loop = true;
 
+const boss3Music = new Audio('assets/sounds/boss3.wav');
+boss3Music.loop = true;
+
 const storage = {
     get: function(key) {
         try { return localStorage.getItem(key); } 
@@ -164,6 +179,7 @@ let frames = 0;
 let gameState = 'MENU'; 
 let gameMode = 'ENDLESS'; 
 let currentLevel = 0; 
+let screenShake = 0; 
 
 let score = 0;
 let bestScore = storage.get('bestScore') || 0;
@@ -190,7 +206,7 @@ let currentSfxVolume = savedSfxVolume !== null ? parseFloat(savedSfxVolume) : 0.
 let currentFadeInterval = null;
 
 function getHitGroundY() {
-    if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6)) {
+    if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6 || currentLevel === 9)) {
         return canvas.height; 
     }
     return canvas.height * 0.75; 
@@ -214,56 +230,22 @@ function updateVolumes() {
         if (gameState === 'PLAYING' || gameState === 'READY' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
             if (gameMode === 'ENDLESS') {
                 endlessMusic.volume = currentMusicVolume;
-                surfaceMusic.volume = 0;
-                boss1Music.volume = 0;
-                boss2Music.volume = 0;
-                underwaterMusic.volume = 0;
-                lavaMusic.volume = 0;
+                surfaceMusic.volume = 0; boss1Music.volume = 0; boss2Music.volume = 0; boss3Music.volume = 0;
+                underwaterMusic.volume = 0; lavaMusic.volume = 0;
             } else if (gameMode === 'CAMPAIGN') {
-                if (currentLevel >= 1 && currentLevel <= 2) {
-                    surfaceMusic.volume = currentMusicVolume;
-                    boss1Music.volume = 0;
-                    boss2Music.volume = 0;
-                    underwaterMusic.volume = 0;
-                    lavaMusic.volume = 0;
-                    endlessMusic.volume = 0;
-                } else if (currentLevel === 3) {
-                    boss1Music.volume = currentMusicVolume;
-                    surfaceMusic.volume = 0;
-                    boss2Music.volume = 0;
-                    underwaterMusic.volume = 0;
-                    lavaMusic.volume = 0;
-                    endlessMusic.volume = 0;
-                } else if (currentLevel === 4 || currentLevel === 5) {
-                    underwaterMusic.volume = currentMusicVolume;
-                    surfaceMusic.volume = 0;
-                    boss1Music.volume = 0;
-                    boss2Music.volume = 0;
-                    lavaMusic.volume = 0;
-                    endlessMusic.volume = 0;
-                } else if (currentLevel === 6) {
-                    boss2Music.volume = currentMusicVolume;
-                    underwaterMusic.volume = 0;
-                    surfaceMusic.volume = 0;
-                    boss1Music.volume = 0;
-                    lavaMusic.volume = 0;
-                    endlessMusic.volume = 0;
-                } else if (currentLevel >= 7) {
-                    lavaMusic.volume = currentMusicVolume;
-                    surfaceMusic.volume = 0;
-                    boss1Music.volume = 0;
-                    boss2Music.volume = 0;
-                    underwaterMusic.volume = 0;
-                    endlessMusic.volume = 0;
-                }
+                surfaceMusic.volume = 0; boss1Music.volume = 0; boss2Music.volume = 0; boss3Music.volume = 0;
+                underwaterMusic.volume = 0; lavaMusic.volume = 0; endlessMusic.volume = 0;
+
+                if (currentLevel >= 1 && currentLevel <= 2) surfaceMusic.volume = currentMusicVolume;
+                else if (currentLevel === 3) boss1Music.volume = currentMusicVolume;
+                else if (currentLevel === 4 || currentLevel === 5) underwaterMusic.volume = currentMusicVolume;
+                else if (currentLevel === 6) boss2Music.volume = currentMusicVolume;
+                else if (currentLevel === 7 || currentLevel === 8) lavaMusic.volume = currentMusicVolume;
+                else if (currentLevel === 9) boss3Music.volume = currentMusicVolume;
             }
         } else {
-            endlessMusic.volume = 0;
-            surfaceMusic.volume = 0;
-            boss1Music.volume = 0;
-            boss2Music.volume = 0;
-            underwaterMusic.volume = 0;
-            lavaMusic.volume = 0;
+            endlessMusic.volume = 0; surfaceMusic.volume = 0; boss1Music.volume = 0; 
+            boss2Music.volume = 0; boss3Music.volume = 0; underwaterMusic.volume = 0; lavaMusic.volume = 0;
         }
     }
 }
@@ -329,15 +311,12 @@ function backToMainMenu() {
     pipes.reset();
     coins.reset();
     backgroundLayer.x = 0;
-    boss.reset();
-    bullets.reset();
-    boss2.reset();
-    boss2Projectiles.reset();
-    currents.reset();
-    horizontalBubbles.reset();
-    ambientBubbles.reset();
-    seaweed.reset();
-    fireballs.reset();
+    boss.reset(); bullets.reset();
+    boss2.reset(); boss2Projectiles.reset();
+    boss3.reset(); boss3Projectiles.reset();
+    currents.reset(); horizontalBubbles.reset();
+    ambientBubbles.reset(); seaweed.reset(); fireballs.reset();
+    screenShake = 0;
     
     const menus = [campaignGameOverMenu, levelCompleteMenu, campaignMenu, bossIntroUI, bossOutroUI];
     menus.forEach(m => {
@@ -532,7 +511,7 @@ const backgroundLayer = {
         let w = scaledBgWidth;
         
         if (gameMode === 'CAMPAIGN') {
-            if (currentLevel >= 1 && currentLevel <= 8) {
+            if (currentLevel >= 1 && currentLevel <= 9) {
                 if (currentLevel >= 1 && currentLevel <= 4) {
                     w = scaledLvl1BgWidth;
                     if (currentLevel === 1) imgToDraw = lvl1BgImg;
@@ -545,9 +524,12 @@ const backgroundLayer = {
                 } else if (currentLevel === 6) {
                     w = scaledLvl1BgWidth; 
                     imgToDraw = lvl6BgImg;
-                } else if (currentLevel >= 7) {
+                } else if (currentLevel >= 7 && currentLevel <= 8) {
                     w = scaledLvl1BgWidth; 
                     imgToDraw = currentLevel === 7 ? lvl7BgImg : lvl8BgImg;
+                } else if (currentLevel === 9) {
+                    w = scaledBgWidth;
+                    imgToDraw = lvl9BgImg;
                 }
             }
         }
@@ -572,7 +554,7 @@ const backgroundLayer = {
             this.x -= currentDx;
             
             let w = scaledBgWidth;
-            if (gameMode === 'CAMPAIGN' && ((currentLevel >= 1 && currentLevel <= 4) || currentLevel === 6 || currentLevel >= 7)) {
+            if (gameMode === 'CAMPAIGN' && ((currentLevel >= 1 && currentLevel <= 4) || currentLevel === 6 || currentLevel === 7 || currentLevel === 8)) {
                 w = scaledLvl1BgWidth;
             }
 
@@ -590,7 +572,7 @@ const floorLayer = {
     height: 512,
     
     draw: function() {
-        if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6)) return;
+        if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6 || currentLevel === 9)) return;
 
         let imgToDraw = floorImg;
 
@@ -1142,7 +1124,6 @@ const fireballs = {
             return;
         }
         
-        // Disabled completely for Level 8
         if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel !== 7) return;
 
         if (Math.random() < 0.035) {
@@ -1198,13 +1179,11 @@ const darknessEffect = {
         if (gameMode !== 'CAMPAIGN' || currentLevel !== 8) return;
 
         const bh = bird.getHitbox();
-        // Offset torchlight slightly forward to help the player see incoming obstacles
         let cx = bh.x + bh.w / 2 + 50; 
         let cy = bh.y + bh.h / 2;
         
         let pulse = Math.sin(frames * 0.1) * 3;
         
-        // Significantly reduced visibility radiuses
         let innerRadius = 20 + pulse;
         let outerRadius = 80 + pulse; 
 
@@ -1216,7 +1195,6 @@ const darknessEffect = {
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Draw some floating embers trapped in the darkness around the light source
         ctx.fillStyle = 'rgba(255, 120, 20, 0.8)';
         for(let i = 0; i < 8; i++) {
             let ex = cx - 80 + ((frames * (0.5 + i*0.1) + i * 100) % 250);
@@ -1439,7 +1417,7 @@ const boss2 = {
                         this.stateTimer = 0;
                         this.targetY = bird.y - this.height / 2;
                     } else if (isNextJelly) {
-                        this.state = 'PREPARE_JELLY'; // Preklopimo na tell/telegrafiranje napada
+                        this.state = 'PREPARE_JELLY'; 
                         this.stateTimer = 0;
                     } else {
                         this.shootWater();
@@ -1447,10 +1425,9 @@ const boss2 = {
                 }
             } else if (this.state === 'PREPARE_JELLY') {
                 this.stateTimer++;
-                this.rotation = -0.5; // Riba se nagne močno navzgor
+                this.rotation = -0.5; 
                 this.y = canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80; 
                 
-                // Počaka pol sekunde v tej pozi in nato izstreli
                 if (this.stateTimer > 35) { 
                     this.shootJelly();
                     this.state = 'IDLE';
@@ -1523,11 +1500,10 @@ const boss2 = {
         let spawnX = this.x + 10;
         let spawnY = this.y + this.height / 2;
 
-        // Meduze izstreljene z različnimi "vy" ustvarijo razdaljo in se po loku gibljejo navzdol
         let trajectories = [
-            { vx: -4, vy: -3 },   // leti najdlje (nizek lok)
-            { vx: -4.5, vy: -6.5 }, // vmesna višina
-            { vx: -5, vy: -10 }   // leti zelo visoko in pade nazaj
+            { vx: -4, vy: -3 },   
+            { vx: -4.5, vy: -6.5 }, 
+            { vx: -5, vy: -10 }   
         ];
 
         for (let t of trajectories) {
@@ -1575,7 +1551,6 @@ const boss2Projectiles = {
             p.y += p.vy;
 
             if(p.type === 'jellyfish') {
-                // Gravitacija povzroči gladko padanje, kar ustvari arc / lok
                 p.vy += p.gravity;
             }
 
@@ -1598,6 +1573,319 @@ const boss2Projectiles = {
     reset: function() { this.items = []; }
 };
 
+// --- LEVEL 9 FINAL BOSS (DRAGON) ---
+const boss3 = {
+    active: false,
+    x: 0,
+    y: 0,
+    width: 140, // Reduced down from 200
+    height: 76, // Reduced proportionately
+    state: 'IDLE',
+    stateTimer: 0,
+    attackCount: 0,
+    rotation: 0,
+    isShooting: false,
+    barragePipesToSpawn: 0,
+    barrageTimer: 0,
+    targetY: 0,
+    laserY: 0, 
+
+    draw: function() {
+        if (!this.active || (gameState !== 'PLAYING' && gameState !== 'BOSS_INTRO' && gameState !== 'BOSS_OUTRO')) return;
+        
+        ctx.save();
+        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+
+        if (gameState === 'BOSS_OUTRO') {
+            this.rotation += 0.05;
+            ctx.rotate(this.rotation);
+        } else {
+            ctx.rotate(this.rotation);
+        }
+
+        let img = this.isShooting ? dragonBoss2Img : dragonBossImg;
+        ctx.drawImage(img, -this.width / 2, -this.height / 2, this.width, this.height);
+
+        // Warning Symbol for Dash Attack
+        if (this.state === 'PREPARE_DASH') {
+            let pulse = Math.abs(Math.sin(frames * 0.2)) * 10;
+            ctx.fillStyle = '#ff4d00';
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.font = '30px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText('!', 0, -this.height/2 - 20 - pulse);
+            ctx.strokeText('!', 0, -this.height/2 - 20 - pulse);
+            ctx.textAlign = 'start';
+        }
+
+        ctx.restore();
+
+        // Draw Death Laser
+        if (this.state === 'PREPARE_LASER' && this.stateTimer >= 30) {
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+            ctx.fillRect(0, this.laserY - 1, canvas.width, 2);
+        } else if (this.state === 'FIRING_LASER') {
+            ctx.fillStyle = '#ff4d00';
+            ctx.fillRect(0, this.laserY - 15, canvas.width, 30);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, this.laserY - 5, canvas.width, 10);
+        }
+    },
+
+    update: function() {
+        if (gameMode !== 'CAMPAIGN' || currentLevel !== 9) return;
+
+        if (gameState === 'BOSS_OUTRO') {
+            this.y += 6;
+            this.x += 1;
+            return;
+        }
+
+        if (gameState !== 'PLAYING' && gameState !== 'BOSS_INTRO') return;
+
+        if (gameState === 'BOSS_INTRO') {
+            this.active = true;
+            this.x = canvas.width - this.width + 20;
+            this.y = canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80;
+            return;
+        }
+
+        if (distanceTraveled < currentLevelLength) {
+            this.active = true;
+
+            if (this.state === 'IDLE') {
+                this.x = canvas.width - this.width + 20;
+                this.y = canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80;
+                this.stateTimer++;
+
+                if (this.stateTimer > 100) {
+                    this.stateTimer = 0;
+                    this.attackCount++;
+
+                    let attackType = this.attackCount % 5; 
+
+                    if (attackType === 1 || attackType === 4) {
+                        this.state = 'SHOOTING';
+                    } else if (attackType === 2) {
+                        this.state = 'PREPARE_LASER';
+                    } else if (attackType === 3) {
+                        this.state = 'PREPARE_DASH';
+                    } else if (attackType === 0) {
+                        this.state = 'LEAVING_FOR_BARRAGE';
+                    }
+                }
+            } else if (this.state === 'SHOOTING') {
+                this.stateTimer++;
+                this.isShooting = true;
+                this.y = canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80;
+
+                if (this.stateTimer === 15) {
+                    boss3Projectiles.items.push({
+                        x: this.x - 10,
+                        y: this.y + this.height / 2 + 10,
+                        vx: -8, // Fast fireball
+                        vy: 0,
+                        width: 32,
+                        height: 32,
+                        type: 'flame'
+                    });
+                    screenShake = 6; 
+                }
+
+                if (this.stateTimer > 60) {
+                    this.state = 'IDLE';
+                    this.isShooting = false;
+                    this.stateTimer = 0;
+                }
+            } else if (this.state === 'PREPARE_LASER') {
+                this.stateTimer++;
+                
+                // For the first 30 frames, smoothly track player vertical position
+                if (this.stateTimer < 30) {
+                    let targetBossY = bird.y + bird.height / 2 - this.height / 2;
+                    this.y += (targetBossY - this.y) * 0.15; // smooth fast tracking
+                }
+                
+                // Lock laser onto the boss's mouth 
+                if (this.stateTimer === 30) {
+                    this.laserY = this.y + this.height / 2 + 10; 
+                }
+
+                if (this.stateTimer > 90) { // 60 frames (1 full second) of locked warning 
+                    this.state = 'FIRING_LASER';
+                    this.stateTimer = 0;
+                    screenShake = 12;
+                    hitSound.currentTime = 0; 
+                    hitSound.play().catch(()=>{});
+                }
+            } else if (this.state === 'FIRING_LASER') {
+                this.stateTimer++;
+                this.isShooting = true;
+                screenShake = 6;
+                
+                const bh = bird.getHitbox();
+                let laserTop = this.laserY - 15;
+                let laserBottom = this.laserY + 15;
+                
+                if (bh.x < canvas.width && bh.x + bh.w > 0 &&
+                    bh.y < laserBottom && bh.h + bh.y > laserTop) {
+                    gameOver();
+                }
+
+                if (this.stateTimer > 40) {
+                    this.state = 'IDLE';
+                    this.isShooting = false;
+                    this.stateTimer = 0;
+                }
+            } else if (this.state === 'PREPARE_DASH') {
+                this.stateTimer++;
+                if (this.y + this.height/2 < bird.y + bird.height/2) this.y += 1.5;
+                if (this.y + this.height/2 > bird.y + bird.height/2) this.y -= 1.5;
+
+                if (this.stateTimer > 70) {
+                    this.state = 'DASHING';
+                    this.stateTimer = 0;
+                    screenShake = 12; 
+                }
+            } else if (this.state === 'DASHING') {
+                this.x -= 20; 
+                const bh = bird.getHitbox();
+                let paddingX = 40;
+                let paddingY = 30;
+
+                if (bh.x < this.x + this.width - paddingX && bh.x + bh.w > this.x + paddingX &&
+                    bh.y < this.y + this.height - paddingY && bh.h + bh.y > this.y + paddingY) {
+                    gameOver();
+                }
+
+                if (this.x < -this.width - 150) {
+                    this.state = 'RETURNING';
+                    this.x = canvas.width + 100;
+                }
+            } else if (this.state === 'RETURNING') {
+                this.x -= 4;
+                this.y = canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80;
+                if (this.x <= canvas.width - this.width + 20) {
+                    this.x = canvas.width - this.width + 20;
+                    this.state = 'IDLE';
+                }
+            } else if (this.state === 'LEAVING_FOR_BARRAGE') {
+                this.x += 6;
+                if (this.x > canvas.width + 50) {
+                    this.state = 'BARRAGE';
+                    this.stateTimer = 0;
+                    this.barragePipesToSpawn = 6; 
+                    this.barrageTimer = 0;
+                }
+            } else if (this.state === 'BARRAGE') {
+                this.barrageTimer++;
+                
+                // Spawn pipes much slower than before to allow maneuvering 
+                if (this.barrageTimer > 90 && this.barragePipesToSpawn > 0) {
+                    this.barrageTimer = 0;
+                    this.barragePipesToSpawn--;
+                    this.spawnBarragePipe();
+                }
+
+                if (this.barragePipesToSpawn <= 0 && this.barrageTimer > 180) { 
+                    this.state = 'RETURNING';
+                }
+            }
+        } else {
+            this.active = false;
+        }
+    },
+
+    spawnBarragePipe: function() {
+        let hitGroundY = getHitGroundY(); 
+        let minPipeHeight = 50;
+        let bobAmp = Math.random() > 0.3 ? 30 : 0; 
+        let bobSpeed = 0.04;
+        
+        // Increase the opening size explicitly for this barrage to make it doable
+        let barrageGap = 150; 
+        
+        let minY = minPipeHeight + bobAmp;
+        let maxY = hitGroundY - barrageGap - minPipeHeight - bobAmp;
+        let randomY = Math.random() * (maxY - minY) + minY;
+
+        let pipeVariants = ['normal', 'normal', 'top_only', 'bottom_only'];
+        let pipeType = pipeVariants[Math.floor(Math.random() * pipeVariants.length)];
+
+        pipes.items.push({
+            x: canvas.width,
+            baseY: randomY,
+            gap: barrageGap, // Inject custom wide gap
+            bobPhase: Math.random() * Math.PI * 2,
+            bobAmp: bobAmp,
+            bobSpeed: bobSpeed,
+            passed: false,
+            isBiting: false,
+            biteSpeed: 0,
+            bitePhase: 0,
+            moveSpeed: 0,
+            movePhase: 0,
+            type: pipeType,
+            hasFlame: false,
+            flameState: 'idle',
+            flameTimer: 0,
+            customTexture: 3 
+        });
+    },
+
+    reset: function() {
+        this.active = false;
+        this.state = 'IDLE';
+        this.stateTimer = 0;
+        this.attackCount = 0;
+        this.isShooting = false;
+        this.rotation = 0;
+    }
+};
+
+const boss3Projectiles = {
+    items: [],
+    draw: function() {
+        for (let p of this.items) {
+            if (p.type === 'flame') {
+                ctx.save();
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = "#ff4d00";
+                ctx.drawImage(flameImg, p.x, p.y, p.width, p.height);
+                ctx.restore();
+            }
+        }
+    },
+    update: function() {
+        if (gameState === 'BOSS_OUTRO') {
+            for(let p of this.items) p.x -= gameSpeed;
+            return;
+        }
+        if (gameState !== 'PLAYING') return;
+
+        for(let i = 0; i < this.items.length; i++) {
+            let p = this.items[i];
+            p.x += p.vx;
+            p.y += p.vy;
+
+            p.x -= gameSpeed * 0.5;
+
+            const bh = bird.getHitbox();
+            const hitBoxPadding = 5; 
+            if (bh.x < p.x + p.width - hitBoxPadding && bh.x + bh.w > p.x + hitBoxPadding &&
+                bh.y < p.y + p.height - hitBoxPadding && bh.h + bh.y > p.y + hitBoxPadding) {
+                gameOver();
+            }
+
+            if (p.x + p.width < 0 || p.x > canvas.width + 50 || p.y > canvas.height + 50 || p.y < -50) {
+                this.items.splice(i, 1);
+                i--;
+            }
+        }
+    },
+    reset: function() { this.items = []; }
+};
 
 // KOVANCI
 const coins = {
@@ -1634,7 +1922,7 @@ const coins = {
 
         if (gameState !== 'PLAYING') return;
 
-        if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6)) {
+        if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6 || currentLevel === 9)) {
             if (coinsSpawned < 3) {
                 let spawnOffset = canvas.width - bird.x; 
                 let triggerDistances = [
@@ -1716,32 +2004,46 @@ const pipes = {
             if (currentLevel >= 4 && currentLevel <= 6) {
                 drawImgTop = (pipe2Img.complete && pipe2Img.naturalWidth !== 0) ? pipe2Img : pipeImg; 
                 drawImgBottom = (pipe2Img.complete && pipe2Img.naturalWidth !== 0) ? pipe2Img : pipeImg;
-            } else if (currentLevel >= 7) {
+            } else if (currentLevel >= 7 && currentLevel <= 8) {
                 drawImgTop = (pipe3Img.complete && pipe3Img.naturalWidth !== 0) ? pipe3Img : pipeImg; 
                 drawImgBottom = (pipe3Img.complete && pipe3Img.naturalWidth !== 0) ? pipe3Img : pipeImg;
             }
         }
 
-        let topPipeHeight = drawImgTop.naturalWidth > 0 ? drawImgTop.naturalHeight * (this.width / drawImgTop.naturalWidth) : 320;
-        let bottomPipeHeight = drawImgBottom.naturalWidth > 0 ? drawImgBottom.naturalHeight * (this.width / drawImgBottom.naturalWidth) : 320;
-
         for (let i = 0; i < this.items.length; i++) {
             let p = this.items[i];
             
-            // These properties are populated by pipes.update()
+            let cDrawTop = drawImgTop;
+            let cDrawBot = drawImgBottom;
+
+            // Apply custom textures for level 9 barrage
+            if (currentLevel === 9 && p.customTexture) {
+                if (p.customTexture === 1) { cDrawTop = pipeImg; cDrawBot = pipeImg; }
+                else if (p.customTexture === 2) { cDrawTop = pipe2Img; cDrawBot = pipe2Img; }
+                else if (p.customTexture === 3) { cDrawTop = pipe3Img; cDrawBot = pipe3Img; }
+            }
+
+            let pipeGap = p.gap || this.gap;
             let topPipeY = p.topPipeY || p.baseY;
-            let bottomPipeY = p.bottomPipeY || (p.baseY + this.gap);
+            let bottomPipeY = p.bottomPipeY || (p.baseY + pipeGap);
+
+            let topPipeHeight = cDrawTop.naturalWidth > 0 ? cDrawTop.naturalHeight * (this.width / cDrawTop.naturalWidth) : 320;
+            let bottomPipeHeight = cDrawBot.naturalWidth > 0 ? cDrawBot.naturalHeight * (this.width / cDrawBot.naturalWidth) : 320;
+
+            // FIX: Extend pipes so they never float visibly on screen
+            if (topPipeHeight < topPipeY) topPipeHeight = topPipeY;
+            if (bottomPipeHeight < canvas.height - bottomPipeY) bottomPipeHeight = canvas.height - bottomPipeY;
 
             if (!p.type || p.type === 'normal' || p.type === 'top_only') {
                 ctx.save();
                 ctx.translate(p.x, topPipeY); 
                 ctx.scale(1, -1); 
-                ctx.drawImage(drawImgTop, 0, 0, this.width, topPipeHeight);
+                ctx.drawImage(cDrawTop, 0, 0, this.width, topPipeHeight);
                 ctx.restore();
             }
 
             if (!p.type || p.type === 'normal' || p.type === 'bottom_only') {
-                ctx.drawImage(drawImgBottom, p.x, bottomPipeY, this.width, bottomPipeHeight);
+                ctx.drawImage(cDrawBot, p.x, bottomPipeY, this.width, bottomPipeHeight);
             }
         }
     },
@@ -1753,8 +2055,9 @@ const pipes = {
             let p = this.items[i];
             if (!p.hasFlame) continue;
 
+            let pipeGap = p.gap || this.gap;
             let topPipeY = p.topPipeY || p.baseY;
-            let bottomPipeY = p.bottomPipeY || (p.baseY + this.gap);
+            let bottomPipeY = p.bottomPipeY || (p.baseY + pipeGap);
 
             let fx = p.x + 5;
             let fw = this.width - 10;
@@ -1815,7 +2118,8 @@ const pipes = {
 
         if (gameState !== 'PLAYING') return; 
 
-        if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6)) return;
+        // Block normal pipe random generation for boss levels, but keep loop active so barrage pipes can move
+        let skipSpawning = (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6 || currentLevel === 9));
 
         let stopSpawning = false;
         if (gameMode === 'CAMPAIGN' && distanceTraveled > currentLevelLength - 300) {
@@ -1830,7 +2134,7 @@ const pipes = {
 
         pipeSpawnTimer += gameSpeed; 
         
-        if (pipeSpawnTimer >= spawnThreshold && !stopSpawning) {
+        if (pipeSpawnTimer >= spawnThreshold && !stopSpawning && !skipSpawning) {
             pipeSpawnTimer = 0; 
             
             let hitGroundY = getHitGroundY(); 
@@ -1955,6 +2259,7 @@ const pipes = {
             }
         }
 
+        // MOVEMENT LOOP FOR PIPES
         for (let i = 0; i < this.items.length; i++) {
             let p = this.items[i];
             p.x -= gameSpeed; 
@@ -1964,15 +2269,16 @@ const pipes = {
                 currentY += Math.sin(frames * p.bobSpeed + p.bobPhase) * p.bobAmp;
             }
 
+            let pipeGap = p.gap || this.gap;
             let topPipeY = currentY;
-            let bottomPipeY = currentY + this.gap;
+            let bottomPipeY = currentY + pipeGap;
 
             if (p.isBiting) {
                 let gapMod = Math.sin(frames * p.biteSpeed + p.bitePhase) * 20;
                 let shiftMod = Math.sin(frames * p.moveSpeed + p.movePhase) * 35;
                 
                 topPipeY = currentY + shiftMod - gapMod;
-                bottomPipeY = currentY + this.gap + shiftMod + gapMod;
+                bottomPipeY = currentY + pipeGap + shiftMod + gapMod;
             }
             
             // Save state for flame rendering loop
@@ -2061,18 +2367,14 @@ function levelComplete() {
     
     storage.set('campaignProgress', JSON.stringify(campaignProgress));
     
-    surfaceMusic.pause();
-    surfaceMusic.currentTime = 0;
-    boss1Music.pause();
-    boss1Music.currentTime = 0;
-    boss2Music.pause();
-    boss2Music.currentTime = 0;
-    underwaterMusic.pause();
-    underwaterMusic.currentTime = 0;
-    lavaMusic.pause();
-    lavaMusic.currentTime = 0;
+    surfaceMusic.pause(); surfaceMusic.currentTime = 0;
+    boss1Music.pause(); boss1Music.currentTime = 0;
+    boss2Music.pause(); boss2Music.currentTime = 0;
+    boss3Music.pause(); boss3Music.currentTime = 0;
+    underwaterMusic.pause(); underwaterMusic.currentTime = 0;
+    lavaMusic.pause(); lavaMusic.currentTime = 0;
 
-    if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6)) {
+    if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6 || currentLevel === 9)) {
         gameState = 'BOSS_OUTRO';
         bossOutroUI.style.display = 'flex';
         
@@ -2102,15 +2404,12 @@ function triggerVictoryFade() {
             bird.reset();
             pipes.reset();
             coins.reset();
-            boss.reset();
-            bullets.reset();
-            boss2.reset();
-            boss2Projectiles.reset();
-            currents.reset();
-            horizontalBubbles.reset();
-            ambientBubbles.reset();
-            seaweed.reset();
-            fireballs.reset();
+            boss.reset(); bullets.reset();
+            boss2.reset(); boss2Projectiles.reset();
+            boss3.reset(); boss3Projectiles.reset();
+            currents.reset(); horizontalBubbles.reset();
+            ambientBubbles.reset(); seaweed.reset(); fireballs.reset();
+            screenShake = 0;
             
             campaignUI.style.display = 'none';
             
@@ -2143,20 +2442,16 @@ function gameOver() {
     hitSound.play().catch(e => {});
     
     flashAlpha = 1; 
+    screenShake = 15; // Massive shake on game over
     
     if(currentFadeInterval) clearInterval(currentFadeInterval);
-    endlessMusic.pause();
-    endlessMusic.currentTime = 0;
-    surfaceMusic.pause();
-    surfaceMusic.currentTime = 0;
-    boss1Music.pause();
-    boss1Music.currentTime = 0;
-    boss2Music.pause();
-    boss2Music.currentTime = 0;
-    underwaterMusic.pause();
-    underwaterMusic.currentTime = 0;
-    lavaMusic.pause();
-    lavaMusic.currentTime = 0;
+    endlessMusic.pause(); endlessMusic.currentTime = 0;
+    surfaceMusic.pause(); surfaceMusic.currentTime = 0;
+    boss1Music.pause(); boss1Music.currentTime = 0;
+    boss2Music.pause(); boss2Music.currentTime = 0;
+    boss3Music.pause(); boss3Music.currentTime = 0;
+    underwaterMusic.pause(); underwaterMusic.currentTime = 0;
+    lavaMusic.pause(); lavaMusic.currentTime = 0;
     
     if (gameMode === 'ENDLESS') {
         if (score > bestScore) {
@@ -2178,15 +2473,12 @@ function gameOver() {
                 bird.reset();
                 pipes.reset();
                 coins.reset();
-                boss.reset();
-                bullets.reset();
-                boss2.reset();
-                boss2Projectiles.reset();
-                currents.reset();
-                horizontalBubbles.reset();
-                ambientBubbles.reset();
-                seaweed.reset();
-                fireballs.reset();
+                boss.reset(); bullets.reset();
+                boss2.reset(); boss2Projectiles.reset();
+                boss3.reset(); boss3Projectiles.reset();
+                currents.reset(); horizontalBubbles.reset();
+                ambientBubbles.reset(); seaweed.reset(); fireballs.reset();
+                screenShake = 0;
                 gameState = 'MENU';
                 
                 campaignUI.style.display = 'none';
@@ -2231,15 +2523,12 @@ function resetGame(mode, level = 0) {
     bird.reset();
     pipes.reset();
     coins.reset();
-    boss.reset();
-    bullets.reset();
-    boss2.reset();
-    boss2Projectiles.reset();
-    currents.reset();
-    horizontalBubbles.reset();
-    ambientBubbles.reset();
-    seaweed.reset();
-    fireballs.reset();
+    boss.reset(); bullets.reset();
+    boss2.reset(); boss2Projectiles.reset();
+    boss3.reset(); boss3Projectiles.reset();
+    currents.reset(); horizontalBubbles.reset();
+    ambientBubbles.reset(); seaweed.reset(); fireballs.reset();
+    screenShake = 0;
     
     score = 0;
     frames = 0;
@@ -2282,7 +2571,7 @@ function resetGame(mode, level = 0) {
         
         if (gameMode === 'CAMPAIGN') {
             campaignUI.style.display = 'flex';
-            if (currentLevel === 3 || currentLevel === 6) {
+            if (currentLevel === 3 || currentLevel === 6 || currentLevel === 9) {
                 
                 bossIntroLevelText.innerText = `LEVEL ${currentLevel}`;
                 if(currentLevel === 3) {
@@ -2291,6 +2580,9 @@ function resetGame(mode, level = 0) {
                 } else if(currentLevel === 6) {
                     bossIntroTitleText.innerText = 'THE AQUA PREDATOR';
                     crossfadeMusic(bgMusic, boss2Music);
+                } else if(currentLevel === 9) {
+                    bossIntroTitleText.innerText = 'THE INFERNAL DRAKE';
+                    crossfadeMusic(bgMusic, boss3Music);
                 }
 
                 gameState = 'BOSS_INTRO';
@@ -2304,7 +2596,7 @@ function resetGame(mode, level = 0) {
             } else if (currentLevel >= 4 && currentLevel <= 5) {
                 crossfadeMusic(bgMusic, underwaterMusic);
                 gameState = 'PLAYING';
-            } else if (currentLevel >= 7) {
+            } else if (currentLevel >= 7 && currentLevel <= 8) {
                 crossfadeMusic(bgMusic, lavaMusic);
                 gameState = 'PLAYING';
             } else {
@@ -2332,6 +2624,16 @@ function draw(now) {
         then = now - (elapsed % fpsInterval);
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Screen shake effect processing
+        ctx.save();
+        if (screenShake > 0) {
+            let dx = (Math.random() - 0.5) * screenShake;
+            let dy = (Math.random() - 0.5) * screenShake;
+            ctx.translate(dx, dy);
+            screenShake *= 0.85; // dampening
+            if (screenShake < 0.5) screenShake = 0;
+        }
 
         // --- LAYER 1: Background ---
         backgroundLayer.update();
@@ -2344,24 +2646,15 @@ function draw(now) {
         ambientBubbles.draw();
 
         // --- LAYER 3: Gameplay Entities ---
-        currents.update();
-        currents.draw();
+        currents.update(); currents.draw();
+        horizontalBubbles.update(); horizontalBubbles.draw();
 
-        horizontalBubbles.update();
-        horizontalBubbles.draw();
-
-        pipes.update();
-        pipes.draw();
+        pipes.update(); pipes.draw();
         
-        boss.update();
-        boss.draw();
-        bullets.update();
-        bullets.draw();
-
-        boss2.update();
-        boss2.draw();
-        boss2Projectiles.update();
-        boss2Projectiles.draw();
+        boss.update(); boss.draw(); bullets.update(); bullets.draw();
+        boss2.update(); boss2.draw(); boss2Projectiles.update(); boss2Projectiles.draw();
+        
+        boss3.update(); boss3.draw(); boss3Projectiles.update(); boss3Projectiles.draw();
         
         coins.update();
         coins.draw();
@@ -2383,6 +2676,9 @@ function draw(now) {
 
         bird.update();
         bird.draw();
+        
+        // Restore context after screen shake
+        ctx.restore();
 
         if (gameState === 'PLAYING' || gameState === 'GAMEOVER' || gameState === 'VICTORY' || gameState === 'READY' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
             if (gameState === 'PLAYING' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
@@ -2452,8 +2748,8 @@ for (let i = 1; i <= 3; i++) {
 let assetsLoaded = 0;
 const imagesToLoad = [
     birdImg, pipeImg, pipe2Img, pipe3Img, floorImg, floor2Img, floor3Img,
-    backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg, lvl5BgImg, lvl6BgImg, lvl7BgImg, lvl8BgImg,
-    birdBossImg, fishBossImg, waterImg, jellyfishImg, bulletImg, seaweedImg 
+    backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg, lvl5BgImg, lvl6BgImg, lvl7BgImg, lvl8BgImg, lvl9BgImg,
+    birdBossImg, fishBossImg, dragonBossImg, dragonBoss2Img, flameImg, waterImg, jellyfishImg, bulletImg, seaweedImg 
 ];
 const totalAssets = imagesToLoad.length; 
 
