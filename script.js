@@ -112,9 +112,6 @@ jellyfishImg.src = 'assets/textures/jellyfish.png';
 const bulletImg = new Image();
 bulletImg.src = 'assets/textures/bullet.png';
 
-const flameImg = new Image();
-flameImg.src = 'assets/textures/flame.png';
-
 // Nalaganje vizualnih efektov
 const seaweedImg = new Image();
 seaweedImg.src = 'assets/textures/seaweed.png'; 
@@ -1142,15 +1139,33 @@ const fireballs = {
         }
         if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel < 7) return;
 
-        if (Math.random() < 0.015) {
-            this.items.push({
-                x: canvas.width + Math.random() * 100,
-                y: getHitGroundY() + 20,
-                vx: -gameSpeed + (Math.random() * 2 - 1),
-                vy: -(6 + Math.random() * 3.5), 
-                radius: 12 + Math.random() * 6,
-                gravity: 0.18
-            });
+        // Increased spawn rate to make them more aggressive
+        if (Math.random() < 0.035) {
+            // Spawn ON SCREEN, just ahead of the player, so they erupt in your face
+            let spawnX = bird.x + 120 + Math.random() * (canvas.width - bird.x - 50);
+            let safeToSpawn = true;
+            
+            // Reduced safe zone around pipes (from 180 to 60) so they can actually spawn between pipes
+            for (let p of pipes.items) {
+                if (p.x < spawnX + 60 && p.x + pipes.width > spawnX - 60) {
+                    safeToSpawn = false;
+                    break;
+                }
+            }
+
+            if (safeToSpawn) {
+                this.items.push({
+                    x: spawnX,
+                    y: getHitGroundY() + 20,
+                    // Drift left towards the player
+                    vx: -gameSpeed - (Math.random() * 1.5),
+                    // Shoot higher into the air
+                    vy: -(7.5 + Math.random() * 4.5), 
+                    radius: 12 + Math.random() * 6,
+                    // Lower gravity so they hang in the air longer
+                    gravity: 0.15
+                });
+            }
         }
 
         for (let i = 0; i < this.items.length; i++) {
@@ -1696,7 +1711,7 @@ const pipes = {
                 ctx.drawImage(drawImgBottom, p.x, bottomPipeY, this.width, bottomPipeHeight);
             }
 
-            // Draw Flame Mechanic for Level 7 Half-Pipes
+            // Draw Canvas Procedural Flame Mechanic for Level 7 Half-Pipes
             if (p.hasFlame) {
                 let fx = p.x + 5;
                 let fw = this.width - 10;
@@ -1704,7 +1719,7 @@ const pipes = {
 
                 if (p.type === 'top_only') {
                     fy = topPipeY; 
-                    fh = getHitGroundY() - 140 - topPipeY; // Guarantees 140px safe zone
+                    fh = getHitGroundY() - 140 - topPipeY; 
                 } else if (p.type === 'bottom_only') {
                     fy = 140; 
                     fh = bottomPipeY - 140;
@@ -1721,11 +1736,32 @@ const pipes = {
                     ctx.fillText('!', fx + fw/2, fy + fh/2 + 10);
                     ctx.textAlign = 'start';
                 } else if (p.flameState === 'firing') {
-                    if (flameImg.complete && flameImg.naturalWidth > 0) {
-                        ctx.drawImage(flameImg, fx, fy, fw, fh);
-                    } else {
-                        ctx.fillStyle = 'rgba(255, 50, 0, 0.9)';
-                        ctx.fillRect(fx, fy, fw, fh);
+                    // Procedural Pixel Art Flame Animation using Canvas API
+                    let stripCount = 5;
+                    let stripWidth = fw / stripCount;
+                    
+                    for (let s = 0; s < stripCount; s++) {
+                        let noise = Math.sin(frames * 0.4 + s * 1.5) * 0.5 + 0.5; // Values between 0 and 1
+                        
+                        let maxH = fh;
+                        
+                        // Base Red
+                        ctx.fillStyle = '#d11f1f';
+                        let redH = maxH * 0.9 + noise * (maxH * 0.1);
+                        let redY = (p.type === 'top_only') ? fy : fy + (fh - redH);
+                        ctx.fillRect(fx + s * stripWidth, redY, stripWidth + 1, redH);
+                        
+                        // Mid Orange
+                        ctx.fillStyle = '#e45c13';
+                        let orgH = maxH * 0.7 + noise * (maxH * 0.2);
+                        let orgY = (p.type === 'top_only') ? fy : fy + (fh - orgH);
+                        ctx.fillRect(fx + s * stripWidth + 2, orgY, stripWidth - 3, orgH);
+                        
+                        // Core Yellow
+                        ctx.fillStyle = '#ffd04b';
+                        let yelH = maxH * 0.4 + noise * (maxH * 0.2);
+                        let yelY = (p.type === 'top_only') ? fy : fy + (fh - yelH);
+                        ctx.fillRect(fx + s * stripWidth + 4, yelY, stripWidth - 7, yelH);
                     }
                 }
             }
@@ -1772,10 +1808,26 @@ const pipes = {
             let moveSpeed = isBiting ? (Math.random() * 0.02 + 0.015) : 0;
             let movePhase = isBiting ? (Math.random() * Math.PI * 2) : 0;
 
+            // 1. Check if a coin is about to spawn on THIS pipe
+            let willSpawnCoin = false;
+            if (gameMode === 'CAMPAIGN' && coinsSpawned < 3) {
+                let spawnOffset = canvas.width - bird.x; 
+                let triggerDistances = [
+                    (currentLevelLength * 0.25) - spawnOffset,
+                    (currentLevelLength * 0.50) - spawnOffset,
+                    (currentLevelLength * 0.75) - spawnOffset
+                ];
+
+                if (distanceTraveled >= triggerDistances[coinsSpawned]) {
+                    willSpawnCoin = true;
+                }
+            }
+
             let pipeType = 'normal';
             let hasFlame = false;
             
-            if (gameMode === 'CAMPAIGN' && currentLevel >= 7) {
+            // 2. Only allow flame pipes if NO COIN is spawning here
+            if (gameMode === 'CAMPAIGN' && currentLevel >= 7 && !willSpawnCoin) {
                 let r = Math.random();
                 if (r < 0.3) {
                     pipeType = 'top_only';
@@ -1819,30 +1871,21 @@ const pipes = {
                 }
             }
 
-            if (gameMode === 'CAMPAIGN' && coinsSpawned < 3) {
-                let spawnOffset = canvas.width - bird.x; 
-
-                let triggerDistances = [
-                    (currentLevelLength * 0.25) - spawnOffset,
-                    (currentLevelLength * 0.50) - spawnOffset,
-                    (currentLevelLength * 0.75) - spawnOffset
-                ];
-
-                if (distanceTraveled >= triggerDistances[coinsSpawned]) {
-                    coins.items.push({
-                        x: canvas.width + this.width / 2 - coins.size / 2, 
-                        baseY: randomY + this.gap / 2 - coins.size / 2, 
-                        pipeBobPhase: pBobPhase, 
-                        coinBobPhase: Math.random() * Math.PI * 2, 
-                        collected: false,
-                        isBossCoin: false,
-                        id: coinsSpawned,
-                        isBiting: isBiting,
-                        moveSpeed: moveSpeed,
-                        movePhase: movePhase
-                    });
-                    coinsSpawned++;
-                }
+            // 3. Spawn the coin using the boolean we checked earlier
+            if (willSpawnCoin) {
+                coins.items.push({
+                    x: canvas.width + this.width / 2 - coins.size / 2, 
+                    baseY: randomY + this.gap / 2 - coins.size / 2, 
+                    pipeBobPhase: pBobPhase, 
+                    coinBobPhase: Math.random() * Math.PI * 2, 
+                    collected: false,
+                    isBossCoin: false,
+                    id: coinsSpawned,
+                    isBiting: isBiting,
+                    moveSpeed: moveSpeed,
+                    movePhase: movePhase
+                });
+                coinsSpawned++;
             }
         }
 
@@ -1879,15 +1922,13 @@ const pipes = {
             }
 
             if (p.hasFlame) {
-                p.flameTimer++;
-                if (p.flameState === 'idle' && p.flameTimer > 45) {
-                    p.flameState = 'warning'; p.flameTimer = 0;
-                } else if (p.flameState === 'warning' && p.flameTimer > 60) {
-                    p.flameState = 'firing'; p.flameTimer = 0;
-                } else if (p.flameState === 'firing' && p.flameTimer > 90) {
-                    p.flameState = 'cooldown'; p.flameTimer = 0;
-                } else if (p.flameState === 'cooldown' && p.flameTimer > 45) {
-                    p.flameState = 'idle'; p.flameTimer = 0;
+                // Dynamically trigger states based on distance to the player instead of timers
+                if (p.flameState === 'idle' && p.x < canvas.width - 20) {
+                    p.flameState = 'warning'; // Start warning right after it spawns
+                } else if (p.flameState === 'warning' && p.x < bird.x + 90) {
+                    p.flameState = 'firing';  // Erupt right before the bird reaches it
+                } else if (p.flameState === 'firing' && p.x < bird.x - 30) {
+                    p.flameState = 'cooldown'; // Turn off after the bird passes safely
                 }
 
                 if (p.flameState === 'firing') {
@@ -2337,7 +2378,7 @@ let assetsLoaded = 0;
 const imagesToLoad = [
     birdImg, pipeImg, pipe2Img, pipe3Img, floorImg, floor2Img, floor3Img,
     backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg, lvl5BgImg, lvl6BgImg, lvl7BgImg,
-    birdBossImg, fishBossImg, waterImg, jellyfishImg, bulletImg, seaweedImg, flameImg 
+    birdBossImg, fishBossImg, waterImg, jellyfishImg, bulletImg, seaweedImg 
 ];
 const totalAssets = imagesToLoad.length; 
 
