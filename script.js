@@ -14,6 +14,9 @@ const levelCompleteMenu = document.getElementById('levelCompleteMenu');
 const bossIntroUI = document.getElementById('bossIntroUI');
 const bossOutroUI = document.getElementById('bossOutroUI');
 
+const bossIntroLevelText = document.getElementById('bossIntroLevelText');
+const bossIntroTitleText = document.getElementById('bossIntroTitleText');
+
 const startBtn = document.getElementById('startBtn');
 const openCampaignBtn = document.getElementById('openCampaignBtn');
 const closeCampaignBtn = document.getElementById('closeCampaignBtn');
@@ -85,8 +88,20 @@ lvl4BgImg.src = 'assets/backgrounds/level4.png';
 const lvl5BgImg = new Image();
 lvl5BgImg.src = 'assets/backgrounds/level5.png'; 
 
+const lvl6BgImg = new Image();
+lvl6BgImg.src = 'assets/backgrounds/level6.png'; 
+
 const birdBossImg = new Image();
 birdBossImg.src = 'assets/textures/birdboss.png';
+
+const fishBossImg = new Image();
+fishBossImg.src = 'assets/textures/fishboss.png';
+
+const waterImg = new Image();
+waterImg.src = 'assets/textures/water.png';
+
+const jellyfishImg = new Image();
+jellyfishImg.src = 'assets/textures/jellyfish.png';
 
 const bulletImg = new Image();
 bulletImg.src = 'assets/textures/bullet.png';
@@ -117,6 +132,9 @@ underwaterMusic.loop = true;
 
 const boss1Music = new Audio('assets/sounds/boss1.wav');
 boss1Music.loop = true;
+
+const boss2Music = new Audio('assets/sounds/boss2.wav');
+boss2Music.loop = true;
 
 const storage = {
     get: function(key) {
@@ -160,7 +178,7 @@ let currentSfxVolume = savedSfxVolume !== null ? parseFloat(savedSfxVolume) : 0.
 let currentFadeInterval = null;
 
 function getHitGroundY() {
-    if (gameMode === 'CAMPAIGN' && currentLevel === 3) {
+    if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6)) {
         return canvas.height; 
     }
     return canvas.height * 0.75; 
@@ -186,20 +204,30 @@ function updateVolumes() {
                 endlessMusic.volume = currentMusicVolume;
                 surfaceMusic.volume = 0;
                 boss1Music.volume = 0;
+                boss2Music.volume = 0;
                 underwaterMusic.volume = 0;
             } else if (gameMode === 'CAMPAIGN') {
                 if (currentLevel >= 1 && currentLevel <= 2) {
                     surfaceMusic.volume = currentMusicVolume;
                     boss1Music.volume = 0;
+                    boss2Music.volume = 0;
                     underwaterMusic.volume = 0;
                     endlessMusic.volume = 0;
                 } else if (currentLevel === 3) {
                     boss1Music.volume = currentMusicVolume;
                     surfaceMusic.volume = 0;
+                    boss2Music.volume = 0;
                     underwaterMusic.volume = 0;
                     endlessMusic.volume = 0;
-                } else if (currentLevel >= 4 && currentLevel <= 6) {
+                } else if (currentLevel === 4 || currentLevel === 5) {
                     underwaterMusic.volume = currentMusicVolume;
+                    surfaceMusic.volume = 0;
+                    boss1Music.volume = 0;
+                    boss2Music.volume = 0;
+                    endlessMusic.volume = 0;
+                } else if (currentLevel === 6) {
+                    boss2Music.volume = currentMusicVolume;
+                    underwaterMusic.volume = 0;
                     surfaceMusic.volume = 0;
                     boss1Music.volume = 0;
                     endlessMusic.volume = 0;
@@ -209,6 +237,7 @@ function updateVolumes() {
             endlessMusic.volume = 0;
             surfaceMusic.volume = 0;
             boss1Music.volume = 0;
+            boss2Music.volume = 0;
             underwaterMusic.volume = 0;
         }
     }
@@ -277,7 +306,10 @@ function backToMainMenu() {
     backgroundLayer.x = 0;
     boss.reset();
     bullets.reset();
+    boss2.reset();
+    boss2Projectiles.reset();
     currents.reset();
+    horizontalBubbles.reset();
     ambientBubbles.reset();
     seaweed.reset();
     
@@ -474,7 +506,7 @@ const backgroundLayer = {
         let w = scaledBgWidth;
         
         if (gameMode === 'CAMPAIGN') {
-            if (currentLevel >= 1 && currentLevel <= 5) {
+            if (currentLevel >= 1 && currentLevel <= 6) {
                 if (currentLevel >= 1 && currentLevel <= 4) {
                     w = scaledLvl1BgWidth;
                     if (currentLevel === 1) imgToDraw = lvl1BgImg;
@@ -484,6 +516,9 @@ const backgroundLayer = {
                 } else if (currentLevel === 5) {
                     w = scaledBgWidth; 
                     imgToDraw = lvl5BgImg;
+                } else if (currentLevel === 6) {
+                    w = scaledLvl1BgWidth; 
+                    imgToDraw = lvl6BgImg;
                 }
             }
         }
@@ -508,7 +543,7 @@ const backgroundLayer = {
             this.x -= currentDx;
             
             let w = scaledBgWidth;
-            if (gameMode === 'CAMPAIGN' && currentLevel >= 1 && currentLevel <= 4) {
+            if (gameMode === 'CAMPAIGN' && ((currentLevel >= 1 && currentLevel <= 4) || currentLevel === 6)) {
                 w = scaledLvl1BgWidth;
             }
 
@@ -526,7 +561,7 @@ const floorLayer = {
     height: 512,
     
     draw: function() {
-        if (gameMode === 'CAMPAIGN' && currentLevel === 3) return;
+        if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6)) return;
 
         let imgToDraw = floorImg;
 
@@ -670,7 +705,6 @@ const ambientBubbles = {
     }
 };
 
-
 // PROCEDURAL PIXEL BUNCH SEAWEED
 const seaweed = {
     items: [],
@@ -708,7 +742,7 @@ const seaweed = {
         return bunch;
     },
     draw: function() {
-        if (gameMode !== 'CAMPAIGN' || currentLevel < 4 || currentLevel > 6) return;
+        if (gameMode !== 'CAMPAIGN' || currentLevel < 4 || currentLevel > 6 || currentLevel === 6) return;
         if (!seaweedImg.complete || seaweedImg.naturalWidth === 0) return; 
 
         let hitGroundY = getHitGroundY(); 
@@ -745,7 +779,7 @@ const seaweed = {
             return;
         }
 
-        if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel < 4 || currentLevel > 6) return;
+        if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel < 4 || currentLevel > 6 || currentLevel === 6) return;
         
         for (let i = 0; i < this.items.length; i++) {
             let bunch = this.items[i];
@@ -956,6 +990,101 @@ const currents = {
     }
 };
 
+// --- HORIZONTAL BUBBLES (Level 6) ---
+const horizontalBubbles = {
+    items: [],
+    draw: function() {
+        if (gameMode !== 'CAMPAIGN' || currentLevel !== 6) return;
+        
+        for (let b of this.items) {
+            let actualY = b.y + Math.sin(frames * 0.05 + b.wobblePhase) * 20;
+
+            if (!b.popped) {
+                ctx.beginPath();
+                ctx.arc(b.x, actualY, b.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(100, 200, 255, 0.4)';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(b.x - b.radius * 0.3, actualY - b.radius * 0.3, b.radius * 0.2, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.fill();
+            } else if (b.popFrames < 10) {
+                ctx.beginPath();
+                ctx.arc(b.x, actualY, b.radius + b.popFrames * 2, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${1 - b.popFrames/10})`;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+    },
+    update: function() {
+        if (gameState === 'BOSS_OUTRO') {
+            for (let b of this.items) b.x -= gameSpeed;
+            return;
+        }
+
+        if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel !== 6) return;
+
+        if (Math.random() < 0.025) { 
+            this.items.push({
+                x: canvas.width + 50,
+                y: Math.random() * canvas.height, 
+                radius: 12 + Math.random() * 12,
+                speedX: -(2 + Math.random() * 2), 
+                wobblePhase: Math.random() * Math.PI * 2,
+                popped: false,
+                popFrames: 0
+            });
+        }
+
+        for (let i = 0; i < this.items.length; i++) {
+            let b = this.items[i];
+            b.x += b.speedX - gameSpeed * 0.5; 
+
+            let actualY = b.y + Math.sin(frames * 0.05 + b.wobblePhase) * 20;
+
+            if (!b.popped) {
+                const bh = bird.getHitbox();
+                
+                let testX = b.x;
+                let testY = actualY;
+
+                if (b.x < bh.x) testX = bh.x;
+                else if (b.x > bh.x + bh.w) testX = bh.x + bh.w;
+
+                if (actualY < bh.y) testY = bh.y;
+                else if (actualY > bh.y + bh.h) testY = bh.y + bh.h;
+
+                let distX = b.x - testX;
+                let distY = actualY - testY;
+                let distance = Math.sqrt((distX*distX) + (distY*distY));
+
+                if (distance <= b.radius) {
+                    b.popped = true;
+                    b.popFrames = 0;
+                    bird.velocity = -3.5; 
+                    flapSound.currentTime = 0;
+                    flapSound.play().catch(e => {});
+                }
+            } else {
+                b.popFrames++;
+            }
+            
+            if (b.x + b.radius < 0 || (b.popped && b.popFrames >= 10)) {
+                this.items.splice(i, 1);
+                i--;
+            }
+        }
+    },
+    reset: function() {
+        this.items = [];
+    }
+};
+
 // --- BOSS OBJEKTI (LEVEL 3) ---
 const boss = {
     active: false,
@@ -1090,6 +1219,236 @@ const bullets = {
     }
 };
 
+
+// --- BOSS OBJEKTI (LEVEL 6) ---
+const boss2 = {
+    active: false,
+    x: 0,
+    y: 0,
+    width: 140, 
+    height: 70, 
+    shootTimer: 0,
+    attackCount: 0,
+    state: 'IDLE', 
+    stateTimer: 0,
+    rotation: 0,
+    targetY: 0,
+
+    draw: function() {
+        if (!this.active || (gameState !== 'PLAYING' && gameState !== 'BOSS_INTRO' && gameState !== 'BOSS_OUTRO')) return;
+        
+        ctx.save();
+        ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+
+        if (gameState === 'BOSS_OUTRO') {
+            this.rotation += 0.05;
+            ctx.rotate(this.rotation);
+        } else {
+            ctx.rotate(this.rotation);
+        }
+
+        ctx.drawImage(fishBossImg, -this.width / 2, -this.height / 2, this.width, this.height);
+        ctx.restore();
+    },
+    
+    update: function() {
+        if (gameMode !== 'CAMPAIGN' || currentLevel !== 6) return;
+
+        if (gameState === 'BOSS_OUTRO') {
+            this.y += 6;
+            this.x += 1;
+            return;
+        }
+
+        if (gameState !== 'PLAYING' && gameState !== 'BOSS_INTRO') return;
+
+        if (gameState === 'BOSS_INTRO') {
+            this.active = true;
+            this.x = canvas.width - this.width + 20; 
+            this.y = canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80;
+            return;
+        }
+
+        if (distanceTraveled < currentLevelLength) {
+            this.active = true;
+
+            if (this.state === 'IDLE') {
+                this.x = canvas.width - this.width + 20; 
+                this.y = canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80;
+                this.rotation = 0;
+                this.shootTimer++;
+
+                if (this.shootTimer > 90) {
+                    this.shootTimer = 0;
+                    this.attackCount++;
+
+                    let isNextJelly = (this.attackCount % 3 === 0);
+
+                    if (Math.random() < 0.25 && this.attackCount > 2 && !isNextJelly) {
+                        this.state = 'SPINNING';
+                        this.stateTimer = 0;
+                        this.targetY = bird.y - this.height / 2;
+                    } else if (isNextJelly) {
+                        this.state = 'PREPARE_JELLY'; // Preklopimo na tell/telegrafiranje napada
+                        this.stateTimer = 0;
+                    } else {
+                        this.shootWater();
+                    }
+                }
+            } else if (this.state === 'PREPARE_JELLY') {
+                this.stateTimer++;
+                this.rotation = -0.5; // Riba se nagne močno navzgor
+                this.y = canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80; 
+                
+                // Počaka pol sekunde v tej pozi in nato izstreli
+                if (this.stateTimer > 35) { 
+                    this.shootJelly();
+                    this.state = 'IDLE';
+                    this.rotation = 0;
+                }
+            } else if (this.state === 'SPINNING') {
+                this.stateTimer++;
+                this.rotation -= 0.15; 
+                
+                if (this.y < this.targetY) this.y += 2;
+                if (this.y > this.targetY) this.y -= 2;
+
+                if (this.stateTimer > 45) {
+                    this.state = 'DASHING';
+                    this.rotation = 0; 
+                }
+            } else if (this.state === 'DASHING') {
+                this.x -= 10;
+                if (this.x < -this.width) {
+                    this.state = 'RETURNING';
+                    this.x = canvas.width + 50;
+                }
+            } else if (this.state === 'RETURNING') {
+                this.x -= 2;
+                this.y = canvas.height / 2 - this.height / 2 + Math.sin(frames * 0.04) * 80;
+                if (this.x <= canvas.width - this.width + 20) {
+                    this.x = canvas.width - this.width + 20;
+                    this.state = 'IDLE';
+                }
+            }
+
+            if (this.state === 'DASHING') {
+                const bh = bird.getHitbox();
+                let paddingX = 35; 
+                let paddingY = 20;
+                
+                if (bh.x < this.x + this.width - paddingX && bh.x + bh.w > this.x + paddingX &&
+                    bh.y < this.y + this.height - paddingY && bh.h + bh.y > this.y + paddingY) {
+                    gameOver();
+                }
+            }
+
+        } else {
+            this.active = false;
+        }
+    },
+    
+    shootWater: function() {
+        let spawnX = this.x + 10; 
+        let spawnY = this.y + this.height / 2;
+
+        let dx = bird.x - spawnX;
+        let dy = bird.y - spawnY;
+        let angle = Math.atan2(dy, dx);
+        let speed = 4.5;
+
+        boss2Projectiles.items.push({
+            x: spawnX,
+            y: spawnY,
+            vx: Math.cos(angle) * (speed + 1),
+            vy: Math.sin(angle) * (speed + 1),
+            type: 'water',
+            width: 32,
+            height: 32,
+            gravity: 0
+        });
+    },
+
+    shootJelly: function() {
+        let spawnX = this.x + 10;
+        let spawnY = this.y + this.height / 2;
+
+        // Meduze izstreljene z različnimi "vy" ustvarijo razdaljo in se po loku gibljejo navzdol
+        let trajectories = [
+            { vx: -4, vy: -3 },   // leti najdlje (nizek lok)
+            { vx: -4.5, vy: -6.5 }, // vmesna višina
+            { vx: -5, vy: -10 }   // leti zelo visoko in pade nazaj
+        ];
+
+        for (let t of trajectories) {
+            boss2Projectiles.items.push({
+                x: spawnX,
+                y: spawnY,
+                vx: t.vx,
+                vy: t.vy,
+                type: 'jellyfish',
+                width: 32,
+                height: 32,
+                gravity: 0.15 
+            });
+        }
+    },
+    
+    reset: function() {
+        this.active = false;
+        this.shootTimer = 0;
+        this.attackCount = 0;
+        this.state = 'IDLE';
+        this.stateTimer = 0;
+        this.rotation = 0;
+    }
+};
+
+const boss2Projectiles = {
+    items: [],
+    draw: function() {
+        for(let p of this.items) {
+            let img = p.type === 'water' ? waterImg : jellyfishImg;
+            ctx.drawImage(img, p.x, p.y, p.width, p.height);
+        }
+    },
+    update: function() {
+        if (gameState === 'BOSS_OUTRO') {
+            for(let p of this.items) p.x -= gameSpeed;
+            return;
+        }
+        if (gameState !== 'PLAYING') return;
+
+        for(let i = 0; i < this.items.length; i++) {
+            let p = this.items[i];
+            p.x += p.vx;
+            p.y += p.vy;
+
+            if(p.type === 'jellyfish') {
+                // Gravitacija povzroči gladko padanje, kar ustvari arc / lok
+                p.vy += p.gravity;
+            }
+
+            p.x -= gameSpeed * 0.5;
+
+            const bh = bird.getHitbox();
+            
+            const hitBoxPadding = 12; 
+            if (bh.x < p.x + p.width - hitBoxPadding && bh.x + bh.w > p.x + hitBoxPadding &&
+                bh.y < p.y + p.height - hitBoxPadding && bh.h + bh.y > p.y + hitBoxPadding) {
+                gameOver();
+            }
+
+            if (p.x + p.width < 0 || p.x > canvas.width + 50 || p.y > canvas.height + 50 || p.y < -50) {
+                this.items.splice(i, 1);
+                i--;
+            }
+        }
+    },
+    reset: function() { this.items = []; }
+};
+
+
 // KOVANCI
 const coins = {
     items: [],
@@ -1124,7 +1483,7 @@ const coins = {
 
         if (gameState !== 'PLAYING') return;
 
-        if (gameMode === 'CAMPAIGN' && currentLevel === 3) {
+        if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6)) {
             if (coinsSpawned < 3) {
                 let spawnOffset = canvas.width - bird.x; 
                 let triggerDistances = [
@@ -1247,7 +1606,7 @@ const pipes = {
 
         if (gameState !== 'PLAYING') return; 
 
-        if (gameMode === 'CAMPAIGN' && currentLevel === 3) return;
+        if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6)) return;
 
         let stopSpawning = false;
         if (gameMode === 'CAMPAIGN' && distanceTraveled > currentLevelLength - 300) {
@@ -1406,10 +1765,12 @@ function levelComplete() {
     surfaceMusic.currentTime = 0;
     boss1Music.pause();
     boss1Music.currentTime = 0;
+    boss2Music.pause();
+    boss2Music.currentTime = 0;
     underwaterMusic.pause();
     underwaterMusic.currentTime = 0;
 
-    if (gameMode === 'CAMPAIGN' && currentLevel === 3) {
+    if (gameMode === 'CAMPAIGN' && (currentLevel === 3 || currentLevel === 6)) {
         gameState = 'BOSS_OUTRO';
         bossOutroUI.style.display = 'flex';
         
@@ -1441,7 +1802,10 @@ function triggerVictoryFade() {
             coins.reset();
             boss.reset();
             bullets.reset();
+            boss2.reset();
+            boss2Projectiles.reset();
             currents.reset();
+            horizontalBubbles.reset();
             ambientBubbles.reset();
             seaweed.reset();
             
@@ -1484,6 +1848,8 @@ function gameOver() {
     surfaceMusic.currentTime = 0;
     boss1Music.pause();
     boss1Music.currentTime = 0;
+    boss2Music.pause();
+    boss2Music.currentTime = 0;
     underwaterMusic.pause();
     underwaterMusic.currentTime = 0;
     
@@ -1509,7 +1875,10 @@ function gameOver() {
                 coins.reset();
                 boss.reset();
                 bullets.reset();
+                boss2.reset();
+                boss2Projectiles.reset();
                 currents.reset();
+                horizontalBubbles.reset();
                 ambientBubbles.reset();
                 seaweed.reset();
                 gameState = 'MENU';
@@ -1558,7 +1927,10 @@ function resetGame(mode, level = 0) {
     coins.reset();
     boss.reset();
     bullets.reset();
+    boss2.reset();
+    boss2Projectiles.reset();
     currents.reset();
+    horizontalBubbles.reset();
     ambientBubbles.reset();
     seaweed.reset();
     
@@ -1603,9 +1975,17 @@ function resetGame(mode, level = 0) {
         
         if (gameMode === 'CAMPAIGN') {
             campaignUI.style.display = 'flex';
-            if (currentLevel === 3) {
-                crossfadeMusic(bgMusic, boss1Music);
+            if (currentLevel === 3 || currentLevel === 6) {
                 
+                bossIntroLevelText.innerText = `LEVEL ${currentLevel}`;
+                if(currentLevel === 3) {
+                    bossIntroTitleText.innerText = 'THE FEATHERED FRIEND';
+                    crossfadeMusic(bgMusic, boss1Music);
+                } else if(currentLevel === 6) {
+                    bossIntroTitleText.innerText = 'THE AQUA PREDATOR';
+                    crossfadeMusic(bgMusic, boss2Music);
+                }
+
                 gameState = 'BOSS_INTRO';
                 bossIntroUI.style.display = 'flex';
                 
@@ -1614,7 +1994,7 @@ function resetGame(mode, level = 0) {
                     gameState = 'PLAYING';
                 }, 3500); 
 
-            } else if (currentLevel >= 4 && currentLevel <= 6) {
+            } else if (currentLevel >= 4 && currentLevel <= 5) {
                 crossfadeMusic(bgMusic, underwaterMusic);
                 gameState = 'PLAYING';
             } else {
@@ -1657,14 +2037,21 @@ function draw(now) {
         currents.update();
         currents.draw();
 
+        horizontalBubbles.update();
+        horizontalBubbles.draw();
+
         pipes.update();
         pipes.draw();
         
         boss.update();
         boss.draw();
-        
         bullets.update();
         bullets.draw();
+
+        boss2.update();
+        boss2.draw();
+        boss2Projectiles.update();
+        boss2Projectiles.draw();
 
         coins.update();
         coins.draw();
@@ -1747,8 +2134,8 @@ for (let i = 1; i <= 3; i++) {
 let assetsLoaded = 0;
 const imagesToLoad = [
     birdImg, pipeImg, pipe2Img, pipe3Img, floorImg, floor2Img,
-    backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg, lvl5BgImg,
-    birdBossImg, bulletImg, seaweedImg 
+    backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg, lvl5BgImg, lvl6BgImg,
+    birdBossImg, fishBossImg, waterImg, jellyfishImg, bulletImg, seaweedImg 
 ];
 const totalAssets = imagesToLoad.length; 
 
