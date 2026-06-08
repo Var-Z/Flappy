@@ -97,6 +97,9 @@ lvl6BgImg.src = 'assets/backgrounds/level6.png';
 const lvl7BgImg = new Image();
 lvl7BgImg.src = 'assets/backgrounds/level7.png';
 
+const lvl8BgImg = new Image();
+lvl8BgImg.src = 'assets/backgrounds/level8.png';
+
 const birdBossImg = new Image();
 birdBossImg.src = 'assets/textures/birdboss.png';
 
@@ -529,7 +532,7 @@ const backgroundLayer = {
         let w = scaledBgWidth;
         
         if (gameMode === 'CAMPAIGN') {
-            if (currentLevel >= 1 && currentLevel <= 7) {
+            if (currentLevel >= 1 && currentLevel <= 8) {
                 if (currentLevel >= 1 && currentLevel <= 4) {
                     w = scaledLvl1BgWidth;
                     if (currentLevel === 1) imgToDraw = lvl1BgImg;
@@ -542,9 +545,9 @@ const backgroundLayer = {
                 } else if (currentLevel === 6) {
                     w = scaledLvl1BgWidth; 
                     imgToDraw = lvl6BgImg;
-                } else if (currentLevel === 7) {
+                } else if (currentLevel >= 7) {
                     w = scaledLvl1BgWidth; 
-                    imgToDraw = lvl7BgImg;
+                    imgToDraw = currentLevel === 7 ? lvl7BgImg : lvl8BgImg;
                 }
             }
         }
@@ -1119,7 +1122,8 @@ const horizontalBubbles = {
 const fireballs = {
     items: [],
     draw: function() {
-        if (gameMode !== 'CAMPAIGN' || currentLevel < 7) return;
+        // Restricted specifically to level 7 now
+        if (gameMode !== 'CAMPAIGN' || currentLevel !== 7) return;
         for (let b of this.items) {
             ctx.beginPath();
             ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
@@ -1137,15 +1141,14 @@ const fireballs = {
             for (let b of this.items) b.x -= gameSpeed;
             return;
         }
-        if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel < 7) return;
+        
+        // Disabled completely for Level 8
+        if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel !== 7) return;
 
-        // Increased spawn rate to make them more aggressive
         if (Math.random() < 0.035) {
-            // Spawn ON SCREEN, just ahead of the player, so they erupt in your face
             let spawnX = bird.x + 120 + Math.random() * (canvas.width - bird.x - 50);
             let safeToSpawn = true;
             
-            // Reduced safe zone around pipes (from 180 to 60) so they can actually spawn between pipes
             for (let p of pipes.items) {
                 if (p.x < spawnX + 60 && p.x + pipes.width > spawnX - 60) {
                     safeToSpawn = false;
@@ -1157,12 +1160,9 @@ const fireballs = {
                 this.items.push({
                     x: spawnX,
                     y: getHitGroundY() + 20,
-                    // Drift left towards the player
                     vx: -gameSpeed - (Math.random() * 1.5),
-                    // Shoot higher into the air
                     vy: -(7.5 + Math.random() * 4.5), 
                     radius: 12 + Math.random() * 6,
-                    // Lower gravity so they hang in the air longer
                     gravity: 0.15
                 });
             }
@@ -1190,6 +1190,49 @@ const fireballs = {
         }
     },
     reset: function() { this.items = []; }
+};
+
+// --- DARKNESS MECHANIC (Level 8) ---
+const darknessEffect = {
+    draw: function() {
+        if (gameMode !== 'CAMPAIGN' || currentLevel !== 8) return;
+
+        const bh = bird.getHitbox();
+        // Offset torchlight slightly forward to help the player see incoming obstacles
+        let cx = bh.x + bh.w / 2 + 50; 
+        let cy = bh.y + bh.h / 2;
+        
+        let pulse = Math.sin(frames * 0.1) * 3;
+        
+        // Significantly reduced visibility radiuses
+        let innerRadius = 20 + pulse;
+        let outerRadius = 80 + pulse; 
+
+        let grad = ctx.createRadialGradient(cx, cy, innerRadius, cx, cy, outerRadius);
+        grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        grad.addColorStop(0.5, 'rgba(30, 10, 0, 0.4)'); 
+        grad.addColorStop(1, 'rgba(0, 0, 0, 1)'); 
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw some floating embers trapped in the darkness around the light source
+        ctx.fillStyle = 'rgba(255, 120, 20, 0.8)';
+        for(let i = 0; i < 8; i++) {
+            let ex = cx - 80 + ((frames * (0.5 + i*0.1) + i * 100) % 250);
+            let ey = cy + 80 - ((frames * (1 + i*0.2) + i * 50) % 200);
+            let eRadius = 1.5 + Math.sin(frames*0.05 + i)*1.5;
+            
+            let dist = Math.sqrt(Math.pow(ex-cx, 2) + Math.pow(ey-cy, 2));
+            if(eRadius > 0 && dist < outerRadius * 0.9) {
+                ctx.globalAlpha = 1 - (dist / (outerRadius * 0.9));
+                ctx.beginPath();
+                ctx.arc(ex, ey, eRadius, 0, Math.PI*2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+    }
 };
 
 // --- BOSS OBJEKTI (LEVEL 3) ---
@@ -1567,8 +1610,9 @@ const coins = {
             if (!c.collected) {
                 let actualY = c.baseY;
                 
-                if (gameMode === 'CAMPAIGN' && currentLevel === 2 && !c.isBossCoin) {
-                    actualY += Math.sin(frames * 0.05 + c.pipeBobPhase) * 45;
+                // Integrated dynamic amplitude/speed handling for Level 2 & 8 mechanics
+                if (c.pipeBobAmp > 0 && !c.isBossCoin) {
+                    actualY += Math.sin(frames * c.pipeBobSpeed + c.pipeBobPhase) * c.pipeBobAmp;
                 } else if (c.isBiting && !c.isBossCoin) {
                     actualY += Math.sin(frames * c.moveSpeed + c.movePhase) * 35;
                     actualY += Math.sin(frames * 0.1 + c.coinBobPhase) * 4;
@@ -1622,8 +1666,9 @@ const coins = {
                 const bh = bird.getHitbox();
                 let actualY = c.baseY;
                 
-                if (gameMode === 'CAMPAIGN' && currentLevel === 2 && !c.isBossCoin) {
-                    actualY += Math.sin(frames * 0.05 + c.pipeBobPhase) * 45;
+                // Integrated dynamic amplitude/speed handling for Level 2 & 8 mechanics
+                if (c.pipeBobAmp > 0 && !c.isBossCoin) {
+                    actualY += Math.sin(frames * c.pipeBobSpeed + c.pipeBobPhase) * c.pipeBobAmp;
                 } else if (c.isBiting && !c.isBossCoin) {
                     actualY += Math.sin(frames * c.moveSpeed + c.movePhase) * 35;
                     actualY += Math.sin(frames * 0.1 + c.coinBobPhase) * 4;
@@ -1683,21 +1728,9 @@ const pipes = {
         for (let i = 0; i < this.items.length; i++) {
             let p = this.items[i];
             
-            let currentY = p.baseY;
-            if (gameMode === 'CAMPAIGN' && currentLevel === 2) {
-                currentY += Math.sin(frames * 0.05 + p.bobPhase) * 45;
-            }
-
-            let topPipeY = currentY;
-            let bottomPipeY = currentY + this.gap;
-
-            if (p.isBiting) {
-                let gapMod = Math.sin(frames * p.biteSpeed + p.bitePhase) * 20; 
-                let shiftMod = Math.sin(frames * p.moveSpeed + p.movePhase) * 35;
-                
-                topPipeY = currentY + shiftMod - gapMod;
-                bottomPipeY = currentY + this.gap + shiftMod + gapMod;
-            }
+            // These properties are populated by pipes.update()
+            let topPipeY = p.topPipeY || p.baseY;
+            let bottomPipeY = p.bottomPipeY || (p.baseY + this.gap);
 
             if (!p.type || p.type === 'normal' || p.type === 'top_only') {
                 ctx.save();
@@ -1710,63 +1743,68 @@ const pipes = {
             if (!p.type || p.type === 'normal' || p.type === 'bottom_only') {
                 ctx.drawImage(drawImgBottom, p.x, bottomPipeY, this.width, bottomPipeHeight);
             }
+        }
+    },
+    
+    drawFlames: function() {
+        if (gameMode !== 'CAMPAIGN' || currentLevel !== 7) return;
 
-            // Draw Canvas Procedural Flame Mechanic for Level 7 Half-Pipes
-            if (p.hasFlame) {
-                let fx = p.x + 5;
-                let fw = this.width - 10;
-                let fy, fh;
+        for (let i = 0; i < this.items.length; i++) {
+            let p = this.items[i];
+            if (!p.hasFlame) continue;
 
-                if (p.type === 'top_only') {
-                    fy = topPipeY; 
-                    fh = getHitGroundY() - 140 - topPipeY; 
-                } else if (p.type === 'bottom_only') {
-                    fy = 140; 
-                    fh = bottomPipeY - 140;
-                }
+            let topPipeY = p.topPipeY || p.baseY;
+            let bottomPipeY = p.bottomPipeY || (p.baseY + this.gap);
 
-                if (p.flameState === 'warning') {
-                    let alpha = (Math.floor(frames / 10) % 2 === 0) ? 0.6 : 0.2;
-                    ctx.fillStyle = `rgba(255, 50, 0, ${alpha})`;
-                    ctx.fillRect(fx, fy, fw, fh);
+            let fx = p.x + 5;
+            let fw = this.width - 10;
+            let fy, fh;
+
+            if (p.type === 'top_only') {
+                fy = topPipeY; 
+                fh = getHitGroundY() - 140 - topPipeY; 
+            } else if (p.type === 'bottom_only') {
+                fy = 140; 
+                fh = bottomPipeY - 140;
+            }
+
+            if (p.flameState === 'warning') {
+                let alpha = (Math.floor(frames / 10) % 2 === 0) ? 0.6 : 0.2;
+                ctx.fillStyle = `rgba(255, 50, 0, ${alpha})`;
+                ctx.fillRect(fx, fy, fw, fh);
+                
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha + 0.3})`;
+                ctx.textAlign = 'center';
+                ctx.font = '20px "Press Start 2P"';
+                ctx.fillText('!', fx + fw/2, fy + fh/2 + 10);
+                ctx.textAlign = 'start';
+            } else if (p.flameState === 'firing') {
+                let stripCount = 5;
+                let stripWidth = fw / stripCount;
+                
+                for (let s = 0; s < stripCount; s++) {
+                    let noise = Math.sin(frames * 0.4 + s * 1.5) * 0.5 + 0.5; 
+                    let maxH = fh;
                     
-                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha + 0.3})`;
-                    ctx.textAlign = 'center';
-                    ctx.font = '20px "Press Start 2P"';
-                    ctx.fillText('!', fx + fw/2, fy + fh/2 + 10);
-                    ctx.textAlign = 'start';
-                } else if (p.flameState === 'firing') {
-                    // Procedural Pixel Art Flame Animation using Canvas API
-                    let stripCount = 5;
-                    let stripWidth = fw / stripCount;
+                    ctx.fillStyle = '#d11f1f';
+                    let redH = maxH * 0.9 + noise * (maxH * 0.1);
+                    let redY = (p.type === 'top_only') ? fy : fy + (fh - redH);
+                    ctx.fillRect(fx + s * stripWidth, redY, stripWidth + 1, redH);
                     
-                    for (let s = 0; s < stripCount; s++) {
-                        let noise = Math.sin(frames * 0.4 + s * 1.5) * 0.5 + 0.5; // Values between 0 and 1
-                        
-                        let maxH = fh;
-                        
-                        // Base Red
-                        ctx.fillStyle = '#d11f1f';
-                        let redH = maxH * 0.9 + noise * (maxH * 0.1);
-                        let redY = (p.type === 'top_only') ? fy : fy + (fh - redH);
-                        ctx.fillRect(fx + s * stripWidth, redY, stripWidth + 1, redH);
-                        
-                        // Mid Orange
-                        ctx.fillStyle = '#e45c13';
-                        let orgH = maxH * 0.7 + noise * (maxH * 0.2);
-                        let orgY = (p.type === 'top_only') ? fy : fy + (fh - orgH);
-                        ctx.fillRect(fx + s * stripWidth + 2, orgY, stripWidth - 3, orgH);
-                        
-                        // Core Yellow
-                        ctx.fillStyle = '#ffd04b';
-                        let yelH = maxH * 0.4 + noise * (maxH * 0.2);
-                        let yelY = (p.type === 'top_only') ? fy : fy + (fh - yelH);
-                        ctx.fillRect(fx + s * stripWidth + 4, yelY, stripWidth - 7, yelH);
-                    }
+                    ctx.fillStyle = '#e45c13';
+                    let orgH = maxH * 0.7 + noise * (maxH * 0.2);
+                    let orgY = (p.type === 'top_only') ? fy : fy + (fh - orgH);
+                    ctx.fillRect(fx + s * stripWidth + 2, orgY, stripWidth - 3, orgH);
+                    
+                    ctx.fillStyle = '#ffd04b';
+                    let yelH = maxH * 0.4 + noise * (maxH * 0.2);
+                    let yelY = (p.type === 'top_only') ? fy : fy + (fh - yelH);
+                    ctx.fillRect(fx + s * stripWidth + 4, yelY, stripWidth - 7, yelH);
                 }
             }
         }
     },
+
     update: function() {
         if (gameState === 'BOSS_OUTRO') {
             for (let i = 0; i < this.items.length; i++) {
@@ -1784,7 +1822,12 @@ const pipes = {
             stopSpawning = true;
         }
 
-        let spawnThreshold = (gameMode === 'CAMPAIGN' && currentLevel >= 7) ? 350 : 220; 
+        let spawnThreshold = 220; 
+        if (gameMode === 'CAMPAIGN') {
+            if (currentLevel === 8) spawnThreshold = 450; 
+            else if (currentLevel >= 7) spawnThreshold = 350;
+        }
+
         pipeSpawnTimer += gameSpeed; 
         
         if (pipeSpawnTimer >= spawnThreshold && !stopSpawning) {
@@ -1793,10 +1836,29 @@ const pipes = {
             let hitGroundY = getHitGroundY(); 
             let minPipeHeight = 50; 
             
-            let amplitude = (gameMode === 'CAMPAIGN' && currentLevel === 2) ? 45 : 0;
             let isBiting = (gameMode === 'CAMPAIGN' && currentLevel === 5);
             let bitePadding = isBiting ? 55 : 0; 
-
+            
+            // Dynamic pipe movement handling
+            let isMovingPipe = false;
+            let pipeBobAmp = 0;
+            let pipeBobSpeed = 0;
+            
+            if (gameMode === 'CAMPAIGN' && currentLevel === 2) {
+                pipeBobAmp = 45;
+                pipeBobSpeed = 0.05;
+                isMovingPipe = true;
+            } else if (gameMode === 'CAMPAIGN' && currentLevel === 8) {
+                if (typeof this.lvl8SpawnCount === 'undefined') this.lvl8SpawnCount = 0;
+                this.lvl8SpawnCount++;
+                if (this.lvl8SpawnCount % 3 === 0) {
+                    pipeBobAmp = 55;
+                    pipeBobSpeed = 0.025; // Slower menacing movement
+                    isMovingPipe = true;
+                }
+            }
+            
+            let amplitude = pipeBobAmp; 
             let minY = minPipeHeight + amplitude + bitePadding;
             let maxY = hitGroundY - this.gap - minPipeHeight - amplitude - bitePadding; 
             
@@ -1826,8 +1888,8 @@ const pipes = {
             let pipeType = 'normal';
             let hasFlame = false;
             
-            // 2. Only allow flame pipes if NO COIN is spawning here
-            if (gameMode === 'CAMPAIGN' && currentLevel >= 7 && !willSpawnCoin) {
+            // 2. Only allow flame pipes if NO COIN is spawning here (Level 7 exclusively now)
+            if (gameMode === 'CAMPAIGN' && currentLevel === 7 && !willSpawnCoin) {
                 let r = Math.random();
                 if (r < 0.3) {
                     pipeType = 'top_only';
@@ -1842,6 +1904,8 @@ const pipes = {
                 x: canvas.width,
                 baseY: randomY, 
                 bobPhase: pBobPhase,
+                bobAmp: pipeBobAmp,
+                bobSpeed: pipeBobSpeed,
                 passed: false,
                 isBiting: isBiting,
                 biteSpeed: biteSpeed,
@@ -1877,6 +1941,8 @@ const pipes = {
                     x: canvas.width + this.width / 2 - coins.size / 2, 
                     baseY: randomY + this.gap / 2 - coins.size / 2, 
                     pipeBobPhase: pBobPhase, 
+                    pipeBobAmp: pipeBobAmp,
+                    pipeBobSpeed: pipeBobSpeed,
                     coinBobPhase: Math.random() * Math.PI * 2, 
                     collected: false,
                     isBossCoin: false,
@@ -1894,8 +1960,8 @@ const pipes = {
             p.x -= gameSpeed; 
 
             let currentY = p.baseY;
-            if (gameMode === 'CAMPAIGN' && currentLevel === 2) {
-                currentY += Math.sin(frames * 0.05 + p.bobPhase) * 45;
+            if (p.bobAmp > 0) {
+                currentY += Math.sin(frames * p.bobSpeed + p.bobPhase) * p.bobAmp;
             }
 
             let topPipeY = currentY;
@@ -1908,6 +1974,10 @@ const pipes = {
                 topPipeY = currentY + shiftMod - gapMod;
                 bottomPipeY = currentY + this.gap + shiftMod + gapMod;
             }
+            
+            // Save state for flame rendering loop
+            p.topPipeY = topPipeY;
+            p.bottomPipeY = bottomPipeY;
 
             const bh = bird.getHitbox(); 
 
@@ -1922,13 +1992,12 @@ const pipes = {
             }
 
             if (p.hasFlame) {
-                // Dynamically trigger states based on distance to the player instead of timers
                 if (p.flameState === 'idle' && p.x < canvas.width - 20) {
-                    p.flameState = 'warning'; // Start warning right after it spawns
+                    p.flameState = 'warning'; 
                 } else if (p.flameState === 'warning' && p.x < bird.x + 90) {
-                    p.flameState = 'firing';  // Erupt right before the bird reaches it
+                    p.flameState = 'firing';  
                 } else if (p.flameState === 'firing' && p.x < bird.x - 30) {
-                    p.flameState = 'cooldown'; // Turn off after the bird passes safely
+                    p.flameState = 'cooldown'; 
                 }
 
                 if (p.flameState === 'firing') {
@@ -1966,6 +2035,7 @@ const pipes = {
     },
     reset: function() {
         this.items = [];
+        this.lvl8SpawnCount = 0;
     }
 };
 
@@ -2293,21 +2363,26 @@ function draw(now) {
         boss2Projectiles.update();
         boss2Projectiles.draw();
         
-        fireballs.update();
-        fireballs.draw();
-
         coins.update();
         coins.draw();
 
         floorLayer.update();
         floorLayer.draw();
 
-        bird.update();
-        bird.draw();
-
         // --- LAYER 4: Parallax Foreground ---
         seaweed.update();
         seaweed.draw();
+
+        // --- LAYER 5: Darkness Overlay (Level 8) ---
+        darknessEffect.draw();
+
+        // --- LAYER 6: Bright Elements (Rendered Above Darkness) ---
+        pipes.drawFlames(); 
+        fireballs.update();
+        fireballs.draw();
+
+        bird.update();
+        bird.draw();
 
         if (gameState === 'PLAYING' || gameState === 'GAMEOVER' || gameState === 'VICTORY' || gameState === 'READY' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
             if (gameState === 'PLAYING' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
@@ -2377,7 +2452,7 @@ for (let i = 1; i <= 3; i++) {
 let assetsLoaded = 0;
 const imagesToLoad = [
     birdImg, pipeImg, pipe2Img, pipe3Img, floorImg, floor2Img, floor3Img,
-    backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg, lvl5BgImg, lvl6BgImg, lvl7BgImg,
+    backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg, lvl5BgImg, lvl6BgImg, lvl7BgImg, lvl8BgImg,
     birdBossImg, fishBossImg, waterImg, jellyfishImg, bulletImg, seaweedImg 
 ];
 const totalAssets = imagesToLoad.length; 
