@@ -88,6 +88,10 @@ birdBossImg.src = 'assets/textures/birdboss.png';
 const bulletImg = new Image();
 bulletImg.src = 'assets/textures/bullet.png';
 
+// Nalaganje vizualnih efektov
+const seaweedImg = new Image();
+seaweedImg.src = 'assets/textures/seaweed.png'; 
+
 // Nalaganje zvokov
 const flapSound = new Audio('assets/sounds/flap.wav');
 const scoreSound = new Audio('assets/sounds/score.wav'); 
@@ -271,6 +275,8 @@ function backToMainMenu() {
     boss.reset();
     bullets.reset();
     currents.reset();
+    ambientBubbles.reset();
+    seaweed.reset();
     
     const menus = [campaignGameOverMenu, levelCompleteMenu, campaignMenu, bossIntroUI, bossOutroUI];
     menus.forEach(m => {
@@ -554,6 +560,211 @@ const floorLayer = {
     }
 };
 
+// --- VISUAL EFFECTS LAYER ---
+const underwaterEffects = {
+    drawTint: function() {
+        if (gameMode !== 'CAMPAIGN' || currentLevel < 4 || currentLevel > 6) return;
+        
+        ctx.fillStyle = 'rgba(10, 50, 120, 0.3)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        let cx = canvas.width / 2;
+        let cy = canvas.height / 2;
+        let rMax = Math.max(cx, cy) * 1.5;
+        let grad = ctx.createRadialGradient(cx, cy, rMax * 0.3, cx, cy, rMax);
+        grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        grad.addColorStop(1, 'rgba(0, 20, 60, 0.6)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    },
+    
+    drawGodRays: function() {
+        if (gameMode !== 'CAMPAIGN' || currentLevel < 4 || currentLevel > 6) return;
+        
+        ctx.save();
+        ctx.globalCompositeOperation = 'overlay'; 
+        
+        // Single swaying ray logic
+        let pulse = Math.sin(frames * 0.01) * 0.5 + 0.5; 
+        let alpha = 0.05 + pulse * 0.1; 
+        
+        let startX = 50 + Math.sin(frames * 0.005) * 50; 
+        
+        let grad = ctx.createLinearGradient(startX, 0, startX + 150, canvas.height);
+        grad.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(startX, 0);
+        ctx.lineTo(startX + 100, 0);
+        ctx.lineTo(startX + 250, canvas.height);
+        ctx.lineTo(startX - 50, canvas.height);
+        ctx.fill();
+
+        ctx.restore();
+    }
+};
+
+const ambientBubbles = {
+    items: [],
+    
+    draw: function() {
+        if (gameMode !== 'CAMPAIGN' || currentLevel < 4 || currentLevel > 6) return;
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        for (let b of this.items) {
+            let actualX = b.x + Math.sin(frames * 0.02 + b.phase) * b.wobbleAmp;
+            ctx.beginPath();
+            ctx.arc(actualX, b.y, b.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    },
+    
+    update: function() {
+        if (gameState === 'BOSS_OUTRO') {
+            for (let b of this.items) b.x -= gameSpeed;
+            return;
+        }
+        
+        if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel < 4 || currentLevel > 6) return;
+
+        if (Math.random() < 0.1) {
+            this.items.push({
+                x: canvas.width + Math.random() * 100 - 50, 
+                y: canvas.height + 10,
+                radius: 1 + Math.random() * 3,
+                speedY: 0.5 + Math.random() * 1.5,
+                phase: Math.random() * Math.PI * 2,
+                wobbleAmp: 5 + Math.random() * 15
+            });
+        }
+
+        for (let i = 0; i < this.items.length; i++) {
+            let b = this.items[i];
+            b.x -= gameSpeed * 0.8; 
+            b.y -= b.speedY;        
+
+            if (b.y + b.radius < 0 || b.x < -50) {
+                this.items.splice(i, 1);
+                i--;
+            }
+        }
+    },
+    
+    reset: function() {
+        this.items = [];
+    }
+};
+
+
+// PROCEDURAL PIXEL BUNCH SEAWEED
+const seaweed = {
+    items: [],
+    spriteSize: 16,
+    framesCount: 3,
+    colorCount: 4,
+    animationSpeed: 10,
+
+    init: function() {
+        this.items = [];
+        for (let i = 0; i < 6; i++) {
+            this.items.push(this.createBunch(Math.random() * 400));
+        }
+    },
+    createBunch: function(xPos) {
+        let colorIndex = Math.floor(Math.random() * this.colorCount);
+        let baseScale = 2.0 + Math.random() * 1.5; 
+        let bunch = {
+            x: xPos,
+            colorIndex: colorIndex,
+            baseScale: baseScale,
+            sprites: []
+        };
+        let clusterCount = Math.floor(Math.random() * 3) + 3;
+        for (let j = 0; j < clusterCount; j++) {
+            let spriteOffset = {
+                x: (j - (clusterCount - 1) / 2) * (this.spriteSize * baseScale * 0.6), 
+                y: - (j * (this.spriteSize * baseScale * 0.4)), 
+                scale: baseScale * (0.8 + Math.random() * 0.4),
+                phase: Math.random() * Math.PI * 2, 
+                wobbleAmp: 3 + Math.random() * 5
+            };
+            bunch.sprites.push(spriteOffset);
+        }
+        return bunch;
+    },
+    draw: function() {
+        if (gameMode !== 'CAMPAIGN' || currentLevel < 4 || currentLevel > 6) return;
+        if (!seaweedImg.complete || seaweedImg.naturalWidth === 0) return; 
+
+        let hitGroundY = getHitGroundY(); 
+
+        for (let i = 0; i < this.items.length; i++) {
+            let bunch = this.items[i];
+            
+            for(let sprite of bunch.sprites) {
+                let framePhase = (frames * 0.1) + sprite.phase; 
+                let currentFrame = Math.floor(framePhase % this.framesCount);
+                
+                let sway = Math.sin(frames * 0.05 + sprite.phase) * sprite.wobbleAmp;
+                
+                let sx = currentFrame * this.spriteSize;
+                let sy = bunch.colorIndex * this.spriteSize;
+                
+                let drawWidth = this.spriteSize * sprite.scale;
+                let drawHeight = this.spriteSize * sprite.scale;
+                
+                let dx = bunch.x + sprite.x + sway;
+                let dy = hitGroundY - drawHeight + sprite.y + 10; 
+
+                ctx.drawImage(
+                    seaweedImg,
+                    sx, sy, this.spriteSize, this.spriteSize, 
+                    dx, dy, drawWidth, drawHeight 
+                );
+            }
+        }
+    },
+    update: function() {
+        if (gameState === 'BOSS_OUTRO') {
+            for (let i = 0; i < this.items.length; i++) this.items[i].x -= gameSpeed * 1.5;
+            return;
+        }
+
+        if (gameState !== 'PLAYING' || gameMode !== 'CAMPAIGN' || currentLevel < 4 || currentLevel > 6) return;
+        
+        for (let i = 0; i < this.items.length; i++) {
+            let bunch = this.items[i];
+            bunch.x -= gameSpeed * 1.5; 
+            
+            if (bunch.x + 200 < 0) {
+                let colorIndex = Math.floor(Math.random() * this.colorCount);
+                let baseScale = 2.0 + Math.random() * 1.5; 
+                bunch.colorIndex = colorIndex;
+                bunch.baseScale = baseScale;
+                bunch.sprites = [];
+                let clusterCount = Math.floor(Math.random() * 3) + 3;
+                for (let j = 0; j < clusterCount; j++) {
+                    let spriteOffset = {
+                        x: (j - (clusterCount - 1) / 2) * (this.spriteSize * baseScale * 0.6), 
+                        y: - (j * (this.spriteSize * baseScale * 0.4)), 
+                        scale: baseScale * (0.8 + Math.random() * 0.4),
+                        phase: Math.random() * Math.PI * 2, 
+                        wobbleAmp: 3 + Math.random() * 5
+                    };
+                    bunch.sprites.push(spriteOffset);
+                }
+                bunch.x = canvas.width + 200 + Math.random() * 100;
+            }
+        }
+    },
+    reset: function() {
+        this.init(); 
+    }
+};
+seaweed.reset(); 
+
 // Ptič
 const bird = {
     x: 50,
@@ -668,7 +879,7 @@ const currents = {
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                 ctx.fill();
             } else if (b.popFrames < 10) {
-                // Draw pop animation (expanding fading circle)
+                // Draw pop animation
                 ctx.beginPath();
                 ctx.arc(actualX, b.y, b.radius + b.popFrames * 2, 0, Math.PI * 2);
                 ctx.strokeStyle = `rgba(255, 255, 255, ${1 - b.popFrames/10})`;
@@ -697,7 +908,6 @@ const currents = {
 
                 const bh = bird.getHitbox();
                 
-                // Circle vs Rectangle collision test
                 let testX = actualX;
                 let testY = b.y;
 
@@ -714,7 +924,7 @@ const currents = {
                 if (distance <= b.radius) {
                     b.popped = true;
                     b.popFrames = 0;
-                    bird.velocity = -3.5; // Bounce the bird upon popping
+                    bird.velocity = -3.5; 
                     flapSound.currentTime = 0;
                     flapSound.play().catch(e => {});
                 }
@@ -722,7 +932,6 @@ const currents = {
                 b.popFrames++;
             }
             
-            // Clean up bubbles that are fully popped or went off-screen
             if (b.x + b.radius * 2 < 0 || (b.popped && b.popFrames >= 10)) {
                 this.items.splice(i, 1);
                 i--;
@@ -978,7 +1187,6 @@ const pipes = {
             drawImgBottom = (pipe2Img.complete && pipe2Img.naturalWidth !== 0) ? pipe2Img : pipeImg;
         }
 
-        // Calculate proportional height based on actual image dimensions
         let topPipeHeight = drawImgTop.naturalWidth > 0 ? drawImgTop.naturalHeight * (this.width / drawImgTop.naturalWidth) : 320;
         let bottomPipeHeight = drawImgBottom.naturalWidth > 0 ? drawImgBottom.naturalHeight * (this.width / drawImgBottom.naturalWidth) : 320;
 
@@ -1037,16 +1245,15 @@ const pipes = {
                 passed: false 
             });
 
-            // SPAWN REDESIGNED BUBBLES IN LEVEL 4
             if (gameMode === 'CAMPAIGN' && currentLevel === 4) {
                 if (Math.random() > 0.3) { 
-                    let numBubbles = Math.floor(Math.random() * 3) + 1; // 1 to 3 bubbles
+                    let numBubbles = Math.floor(Math.random() * 3) + 1; 
                     for(let j = 0; j < numBubbles; j++) {
                         currents.items.push({
                             x: canvas.width + 80 + Math.random() * 60, 
-                            y: canvas.height + 20 + Math.random() * 80, // Start below floor
+                            y: canvas.height + 20 + Math.random() * 80, 
                             radius: 12 + Math.random() * 12,
-                            speedY: -(1 + Math.random() * 1.5), // Float upwards
+                            speedY: -(1 + Math.random() * 1.5), 
                             wobblePhase: Math.random() * Math.PI * 2,
                             popped: false,
                             popFrames: 0
@@ -1180,6 +1387,8 @@ function triggerVictoryFade() {
             boss.reset();
             bullets.reset();
             currents.reset();
+            ambientBubbles.reset();
+            seaweed.reset();
             
             campaignUI.style.display = 'none';
             
@@ -1246,6 +1455,8 @@ function gameOver() {
                 boss.reset();
                 bullets.reset();
                 currents.reset();
+                ambientBubbles.reset();
+                seaweed.reset();
                 gameState = 'MENU';
                 
                 campaignUI.style.display = 'none';
@@ -1293,6 +1504,8 @@ function resetGame(mode, level = 0) {
     boss.reset();
     bullets.reset();
     currents.reset();
+    ambientBubbles.reset();
+    seaweed.reset();
     
     score = 0;
     frames = 0;
@@ -1375,9 +1588,17 @@ function draw(now) {
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // --- LAYER 1: Background ---
         backgroundLayer.update();
         backgroundLayer.draw();
 
+        // --- LAYER 2: Deep Water Atmosphere ---
+        underwaterEffects.drawTint();
+        underwaterEffects.drawGodRays();
+        ambientBubbles.update();
+        ambientBubbles.draw();
+
+        // --- LAYER 3: Gameplay Entities ---
         currents.update();
         currents.draw();
 
@@ -1399,6 +1620,10 @@ function draw(now) {
         bird.update();
         bird.draw();
 
+        // --- LAYER 4: Parallax Foreground ---
+        seaweed.update();
+        seaweed.draw();
+
         if (gameState === 'PLAYING' || gameState === 'GAMEOVER' || gameState === 'VICTORY' || gameState === 'READY' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
             if (gameState === 'PLAYING' || gameState === 'BOSS_INTRO' || gameState === 'BOSS_OUTRO') {
                 frames++;
@@ -1411,7 +1636,9 @@ function draw(now) {
                 }
 
                 if (gameMode === 'CAMPAIGN') {
-                    let progressPercent = Math.min((distanceTraveled / currentLevelLength) * 100, 100);
+                    let progressPercent = Math.min((distanceTraveled / currentLevelLength) * 100, 100).toFixed(2);
+                    
+                    // APPLY PROGRESS TO UI
                     document.getElementById('progressFill').style.width = progressPercent + '%';
 
                     if (distanceTraveled >= currentLevelLength) {
@@ -1466,7 +1693,7 @@ let assetsLoaded = 0;
 const imagesToLoad = [
     birdImg, pipeImg, pipe2Img, pipe3Img, floorImg, floor2Img,
     backgroundImg, coinImg, lvl1BgImg, lvl2BgImg, lvl3BgImg, lvl4BgImg,
-    birdBossImg, bulletImg
+    birdBossImg, bulletImg, seaweedImg 
 ];
 const totalAssets = imagesToLoad.length; 
 
